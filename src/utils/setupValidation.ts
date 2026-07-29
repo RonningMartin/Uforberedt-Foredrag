@@ -1,5 +1,6 @@
 import type { ValidationResult } from '../types/app'
 import type { EntityId, Participant, Presentation } from '../types/domain'
+import { createEntityId } from './entityId'
 
 type IdFactory = () => EntityId
 
@@ -277,14 +278,6 @@ export function isValidPresentationUrl(url: string): boolean {
   } catch {
     return false
   }
-}
-
-export function createEntityId(): EntityId {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID()
-  }
-
-  return `entity-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 function normalizeDisplayText(value: string): string {

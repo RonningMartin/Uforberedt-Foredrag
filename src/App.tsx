@@ -46,7 +46,7 @@ function App() {
 
       <main className="page">
         {state.activeView === 'setup' ? <SetupPage state={state} dispatch={dispatch} /> : null}
-        {state.activeView === 'event' ? <EventPage /> : null}
+        {state.activeView === 'event' ? <EventPage state={state} dispatch={dispatch} /> : null}
         {state.activeView === 'history' ? <HistoryPage historyCount={state.history.length} /> : null}
       </main>
     </div>

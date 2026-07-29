@@ -21,7 +21,11 @@ export interface DraftRound {
   id: EntityId
   step: RoundStep
   participantId: EntityId | null
+  participantName: string | null
   presentationId: EntityId | null
+  presentationTitle: string | null
+  presentationUrl: string | null
+  historyEntryId: EntityId | null
   startedAt: string
 }
 

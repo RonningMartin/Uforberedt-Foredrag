@@ -1,4 +1,5 @@
 import type { AppAction, AppState } from '../types/app'
+import { createCompletedRound, reconcileCurrentRound } from '../utils/roundLogic'
 
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
@@ -11,6 +12,39 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         activeView: action.view,
       }
+
+    case 'setCurrentRound':
+      return {
+        ...state,
+        currentRound: action.currentRound,
+      }
+
+    case 'confirmCurrentRound': {
+      const participants = state.participants.map((participant) =>
+        participant.id === action.historyEntry.participantId
+          ? {
+              ...participant,
+              isUsed: true,
+            }
+          : participant,
+      )
+      const presentations = state.presentations.map((presentation) =>
+        presentation.id === action.historyEntry.presentationId
+          ? {
+              ...presentation,
+              isUsed: true,
+            }
+          : presentation,
+      )
+
+      return {
+        ...state,
+        participants,
+        presentations,
+        history: [...state.history, action.historyEntry],
+        currentRound: createCompletedRound(state.currentRound, action.historyEntry),
+      }
+    }
 
     case 'addParticipant':
       return {
@@ -25,7 +59,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
 
     case 'updateParticipant':
-      return {
+      return withReconciledRound({
         ...state,
         participants: state.participants.map((participant) =>
           participant.id === action.participantId
@@ -35,20 +69,18 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : participant,
         ),
-      }
+      })
 
     case 'deleteParticipant':
-      return {
+      return withReconciledRound({
         ...state,
         participants: state.participants.filter(
           (participant) => participant.id !== action.participantId,
         ),
-        currentRound:
-          state.currentRound?.participantId === action.participantId ? null : state.currentRound,
-      }
+      })
 
     case 'setParticipantActive':
-      return {
+      return withReconciledRound({
         ...state,
         participants: state.participants.map((participant) =>
           participant.id === action.participantId
@@ -58,10 +90,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : participant,
         ),
-      }
+      })
 
     case 'restoreParticipant':
-      return {
+      return withReconciledRound({
         ...state,
         participants: state.participants.map((participant) =>
           participant.id === action.participantId
@@ -72,7 +104,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : participant,
         ),
-      }
+      })
 
     case 'addPresentation':
       return {
@@ -87,7 +119,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
 
     case 'updatePresentation':
-      return {
+      return withReconciledRound({
         ...state,
         presentations: state.presentations.map((presentation) =>
           presentation.id === action.presentationId
@@ -98,20 +130,18 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : presentation,
         ),
-      }
+      })
 
     case 'deletePresentation':
-      return {
+      return withReconciledRound({
         ...state,
         presentations: state.presentations.filter(
           (presentation) => presentation.id !== action.presentationId,
         ),
-        currentRound:
-          state.currentRound?.presentationId === action.presentationId ? null : state.currentRound,
-      }
+      })
 
     case 'setPresentationActive':
-      return {
+      return withReconciledRound({
         ...state,
         presentations: state.presentations.map((presentation) =>
           presentation.id === action.presentationId
@@ -121,10 +151,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : presentation,
         ),
-      }
+      })
 
     case 'restorePresentation':
-      return {
+      return withReconciledRound({
         ...state,
         presentations: state.presentations.map((presentation) =>
           presentation.id === action.presentationId
@@ -135,7 +165,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : presentation,
         ),
-      }
+      })
 
     case 'replaceState':
       return action.nextState
@@ -147,4 +177,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled action: ${JSON.stringify(value)}`)
+}
+
+function withReconciledRound(nextState: AppState): AppState {
+  return {
+    ...nextState,
+    currentRound: reconcileCurrentRound(
+      nextState.currentRound,
+      nextState.participants,
+      nextState.presentations,
+      nextState.history,
+    ),
+  }
 }

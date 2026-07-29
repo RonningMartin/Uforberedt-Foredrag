@@ -8,6 +8,7 @@ import type {
   RoundHistoryEntry,
   RoundStep,
 } from '../types/domain'
+import { reconcileCurrentRound } from './roundLogic'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -57,7 +58,7 @@ export function validateAppState(value: unknown): ValidationResult<AppState> {
       participants,
       presentations,
       history,
-      currentRound,
+      currentRound: reconcileCurrentRound(currentRound, participants, presentations, history),
       settings,
     },
   }
@@ -164,11 +165,23 @@ function validateDraftRound(value: unknown, path: string): ValidationResult<Draf
   const id = readString(value.id, `${path}.id`, errors)
   const step = readRoundStep(value.step, `${path}.step`, errors)
   const participantId = readNullableString(value.participantId, `${path}.participantId`, errors)
+  const participantName = readNullableString(value.participantName, `${path}.participantName`, errors)
   const presentationId = readNullableString(
     value.presentationId,
     `${path}.presentationId`,
     errors,
   )
+  const presentationTitle = readNullableString(
+    value.presentationTitle,
+    `${path}.presentationTitle`,
+    errors,
+  )
+  const presentationUrl = readNullableString(
+    value.presentationUrl,
+    `${path}.presentationUrl`,
+    errors,
+  )
+  const historyEntryId = readNullableString(value.historyEntryId, `${path}.historyEntryId`, errors)
   const startedAt = readString(value.startedAt, `${path}.startedAt`, errors)
 
   if (errors.length > 0) {
@@ -181,7 +194,11 @@ function validateDraftRound(value: unknown, path: string): ValidationResult<Draf
       id,
       step,
       participantId,
+      participantName,
       presentationId,
+      presentationTitle,
+      presentationUrl,
+      historyEntryId,
       startedAt,
     },
   }

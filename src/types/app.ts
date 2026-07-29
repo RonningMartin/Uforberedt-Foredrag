@@ -25,6 +25,14 @@ export type AppAction =
       view: AppView
     }
   | {
+      type: 'setCurrentRound'
+      currentRound: DraftRound | null
+    }
+  | {
+      type: 'confirmCurrentRound'
+      historyEntry: RoundHistoryEntry
+    }
+  | {
       type: 'addParticipant'
       participant: Participant
     }
