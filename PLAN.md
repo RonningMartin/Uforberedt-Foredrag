@@ -2,15 +2,15 @@
 
 ## Nåværende status
 
-Prosjektet er per nå et lite, fungerende Vite-grunnlag med React og TypeScript:
+Prosjektet er per nå et fungerende Vite-prosjekt med React og TypeScript, samt en ferdig grunnmur fra fase 1:
 
 - Byggekjedet bruker Vite 7, React 19 og TypeScript 5.
 - Roten inneholder standardfiler som `package.json`, `vite.config.ts`, `tsconfig*.json`, `index.html` og `README.md`.
-- `src/` inneholder bare `main.tsx`, `App.tsx` og `styles.css`.
-- `App.tsx` viser kun en enkel startside med tittelen "Uforberedt foredrag".
-- Det finnes foreløpig ingen ruting, ingen domene-modeller, ingen lokal lagring, ingen adminvisning, ingen event-modus, ingen historikk og ingen import/eksport.
-- Det finnes heller ikke testoppsett eller Vitest-konfigurasjon ennå.
-- Baseline-status er god: `npm run build` fungerer.
+- `src/` inneholder nå `types`, `state`, `hooks`, `utils` og testfiler i tillegg til app-skallet.
+- Appen har sentral state med reducer, versjonert `localStorage`-persistens og validering av lagret data.
+- Det finnes et enkelt app-shell med navigasjon mellom Oppsett, Event og Historikk, men bare som plassholdere.
+- Vitest er satt opp og dekker grunnleggende logikk for sikker tilfeldig trekning og gjenoppretting fra lagret state.
+- Baseline-status er god: tester og `npm run build` fungerer.
 
 ## Sammenligning mot kravspesifikasjonen
 
@@ -19,23 +19,24 @@ Prosjektet er per nå et lite, fungerende Vite-grunnlag med React og TypeScript:
 - React
 - TypeScript
 - Vite
-- En enkel responsiv startside
+- En enkel og responsiv app-shell med kompakt toppnavigasjon
+- Sentral app-state og reducer
+- Lokal persistens med `localStorage`
+- Validering og fallback ved korrupt lagret data
+- Vitest-oppsett for sentral logikk
 - Ingen backend
 - Eksisterende Git-repository er beholdt
 
 ### Mangler helt eller nesten helt
 
-- Datamodell for deltakere, presentasjoner, runder og innstillinger
-- Lokal persistens med `localStorage`
-- Setup/adminskjerm
-- Event-modus for stor skjerm
-- Spinning wheel-komponent med sikker tilfeldig trekning
-- Runde-flyt med bekreftelse, omtrekk og avbryt
-- Historikkside med undo/restore/reset
+- Setup/adminskjerm med faktiske skjemaer og lister
+- Full event-modus for stor skjerm
+- Spinning wheel-komponent som visualiserer sikker tilfeldig trekning
+- Runde-flyt med bekreftelse, omtrekk, tilbake og avbryt
+- Historikkside med reelle runder, undo/restore/reset
 - Import/eksport av JSON-data
-- Feilhåndtering for korrupt `localStorage`, ugyldige URL-er og blokkert popup
+- Feilhåndtering for ugyldige URL-er og blokkert popup
 - Tastaturstyring og fullscreen-støtte
-- Tester med Vitest
 - README-innhold for testing, publisering og arkitektur
 
 ## Foreslått arkitektur
@@ -66,9 +67,180 @@ Anbefalte designprinsipper:
 - Hold navigasjon enkel. En lett hash-basert navigasjon eller en liten intern side-state kan være nok uten å innføre tung ruting.
 - Unngå store tredjepartsbiblioteker for hjul, state og validering med mindre vi faktisk trenger dem.
 
+## Design- og interaksjonsmål for sluttproduktet
+
+Denne seksjonen beskriver ønsket sluttretning for brukeropplevelsen. Målene styrer senere faser, men funksjonene skal fortsatt implementeres i de allerede planlagte fasene.
+
+### Generelt
+
+- Applikasjonen skal være enkel, ryddig og lett å forstå.
+- Den skal brukes under et sosialt arrangement og må ikke se ut som et profesjonelt analyse-dashboard.
+- Oppsett og administrasjon skal være praktisk, mens event-modus skal være svært minimalistisk og egnet for prosjektor og fullskjerm.
+- Tekst og knapper skal være store nok til å leses på avstand.
+- Utviklingstekst og tekniske forklaringer skal aldri vises i det ferdige brukergrensesnittet.
+
+### Oppsett-siden
+
+Oppsett-siden skal hovedsakelig ha:
+
+1. En kompakt toppmeny med:
+   - Oppsett
+   - Event
+   - Historikk
+2. To tydelige områder eller kolonner:
+   - Deltakere
+   - Presentasjoner
+3. Deltakere:
+   - Vise navnet på alle deltakere.
+   - Legge til én deltaker.
+   - Legge til flere deltakere samtidig.
+   - Redigere navn.
+   - Slette deltaker.
+   - Aktivere eller deaktivere deltaker.
+   - Vise om deltakeren er tilgjengelig, brukt eller deaktivert.
+   - Gjøre en brukt deltaker tilgjengelig igjen manuelt.
+4. Presentasjoner:
+   - Vise presentasjonens tittel.
+   - Lagre en HTTP- eller HTTPS-lenke til presentasjonen.
+   - Legge til en ny presentasjon med tittel og lenke.
+   - Redigere tittel og lenke.
+   - Slette presentasjon.
+   - Aktivere eller deaktivere presentasjon.
+   - Vise om presentasjonen er tilgjengelig, brukt eller deaktivert.
+   - Gjøre en brukt presentasjon tilgjengelig igjen manuelt.
+5. En tydelig knapp:
+   - `Start arrangement`
+6. En diskret statuslinje, for eksempel:
+   - `12 deltakere · 12 presentasjoner tilgjengelig`
+
+Unngå store statistikkort dersom informasjonen kan vises mer kompakt.
+
+### Event-modus
+
+Event-modus skal ha minimalt med visuell støy.
+
+Steg 1:
+
+- Overskrift: `Velg deltaker`
+- Et stort hjul med alle tilgjengelige deltakere.
+- En tydelig knapp: `Spinn hjulet`.
+- Etter trekning vises den valgte deltakeren tydelig.
+- Det skal være mulig å trykke `Spinn på nytt`.
+- Det skal være mulig å avbryte runden.
+- `Spinn på nytt` skal erstatte det foreløpige valget uten å merke noen som brukt.
+- En knapp `Fortsett` går videre til presentasjonshjulet.
+
+Steg 2:
+
+- Overskrift: `Velg presentasjon`
+- Et stort hjul med alle tilgjengelige presentasjoner.
+- En tydelig knapp: `Spinn hjulet`.
+- Etter trekning vises valgt presentasjon tydelig.
+- Det skal være mulig å trykke `Spinn på nytt`.
+- Det skal være mulig å gå tilbake eller avbryte runden.
+- En knapp skal åpne presentasjonslenken i en ny fane.
+- En manuell `Åpne presentasjon`-knapp skal alltid være tilgjengelig.
+
+Steg 3:
+
+- Vis valgt deltaker og valgt presentasjon sammen.
+- Ha en tydelig knapp: `Bekreft runde`.
+- Deltakeren og presentasjonen skal først merkes som brukt når runden bekreftes.
+- Etter bekreftelse fjernes de fra fremtidige trekninger.
+- Vis en enkel knapp: `Start neste runde`.
+
+### Respinn og midlertidige valg
+
+- En trekning skal være foreløpig frem til runden bekreftes.
+- Brukeren skal kunne spinne deltakerhjulet på nytt.
+- Brukeren skal kunne spinne presentasjonshjulet på nytt.
+- Tidligere foreløpige valg skal ikke markeres som brukt.
+- Ingen deltaker eller presentasjon skal fjernes permanent bare fordi hjulet har blitt spunnet.
+
+### Brukt, deaktivert, slettet og gjenopprettet
+
+Bruk disse betydningene konsekvent:
+
+- Tilgjengelig:
+  Kan trekkes i en ny runde.
+- Brukt:
+  Har vært med i en bekreftet runde og trekkes ikke igjen automatisk, men finnes fortsatt lagret.
+- Deaktivert:
+  Finnes fortsatt i oppsettet, men skal ikke være med i trekningen.
+- Slettet:
+  Fjernes helt etter at brukeren har bekreftet slettingen.
+- Gjenopprett:
+  Gjør en brukt deltaker eller presentasjon tilgjengelig igjen.
+
+Det skal være mulig å gjenopprette individuelle brukte deltakere og presentasjoner fra Oppsett eller Historikk.
+
+### Historikk
+
+Historikksiden skal vise gjennomførte runder på en enkel måte:
+
+- Rundenummer
+- Deltaker
+- Presentasjon
+- Lenke
+- Tidspunkt
+
+Den skal ha:
+
+- `Angre siste runde`, som legger både deltaker og presentasjon tilbake.
+- Mulighet til å gjenopprette én deltaker.
+- Mulighet til å gjenopprette én presentasjon.
+- Nullstilling av fremdrift uten å slette oppsettet.
+- Sletting av alle data som et separat valg med tydelig bekreftelse.
+
+### Visuelt eksempel
+
+Oppsett kan omtrent følge denne enkle strukturen:
+
+```text
+Uforberedt foredrag
+
+[Oppsett] [Event] [Historikk]
+
+Deltakere                  Presentasjoner
+──────────────────         ──────────────────
+Ola                        Verdensrommet
+Kari                       Katter på internett
+Per                        Kunstig intelligens
+
+[Legg til deltaker]        [Legg til presentasjon]
+
+12 deltakere · 12 presentasjoner tilgjengelig
+
+[Start arrangement]
+```
+
+Event-modus kan omtrent følge denne strukturen:
+
+```text
+Steg 1 av 2 – Velg deltaker
+
+              [HJUL]
+
+          [SPINN HJULET]
+
+Etter trekning:
+
+Valgt deltaker
+
+MARTIN
+
+[Spinn på nytt] [Fortsett] [Avbryt]
+```
+
+Dette er kun en retningslinje for struktur. Designet skal være pent og responsivt, men fortsatt enkelt.
+
 ## Faseplan
 
 ### Fase 1: Grunnmur, state og testoppsett
+
+Status:
+
+- Fullført
 
 Mål:
 
@@ -104,6 +276,10 @@ Testkriterier:
 
 ### Fase 2: Setup/admin for deltakere og presentasjoner
 
+Status:
+
+- Planlagt
+
 Mål:
 
 - Lage en praktisk administrasjonsside for å opprette og vedlikeholde data.
@@ -131,6 +307,10 @@ Testkriterier:
 
 ### Fase 3: Runde-motor og bekreftelsesflyt
 
+Status:
+
+- Planlagt
+
 Mål:
 
 - Implementere selve runde-logikken uavhengig av den visuelle hjul-animasjonen.
@@ -157,6 +337,10 @@ Testkriterier:
 
 ### Fase 4: Wheel-komponent og event-modus for storskjerm
 
+Status:
+
+- Planlagt
+
 Mål:
 
 - Lage en gjenbrukbar hjulkomponent som lander på forhåndsvalgt vinner.
@@ -182,6 +366,10 @@ Testkriterier:
 
 ### Fase 5: Historikk, undo, restore og reset
 
+Status:
+
+- Planlagt
+
 Mål:
 
 - Gjøre det mulig å forstå og reversere hendelser under arrangementet.
@@ -203,6 +391,10 @@ Testkriterier:
 - Reset med "slett alt" fjerner all applikasjonsdata.
 
 ### Fase 6: Import/eksport, robusthet, dokumentasjon og sluttpolering
+
+Status:
+
+- Planlagt
 
 Mål:
 

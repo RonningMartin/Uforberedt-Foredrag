@@ -7,167 +7,164 @@ import {
   createInitialAppState,
   getAppStats,
 } from './state/appState'
-import type { AppView } from './types/app'
 import { validateAppState } from './utils/dataValidation'
 
-const viewCopy: Record<
-  AppView,
-  {
-    title: string
-    description: string
-    nextSteps: string[]
-  }
-> = {
-  setup: {
-    title: 'Oppsett kommer i neste fase',
-    description:
-      'Denne visningen reserveres til administrasjon av deltakere og presentasjoner. I fase 1 er målet bare å få state, persistens og struktur på plass.',
-    nextSteps: [
-      'Koble deltaker- og presentasjonsdata til sentral app-state.',
-      'Legge til validerte skjemaer og raske bulk-felt.',
-      'Forberede demo-datasett og tomtilstander.',
-    ],
-  },
-  event: {
-    title: 'Event-modus er klargjort, men ikke implementert',
-    description:
-      'Runde-logikk, spinning wheel og storskjermmodus bygges i senere faser. Fase 1 etablerer bare data- og navigasjonsgrunnlaget de skal bruke.',
-    nextSteps: [
-      'Bygge runde-motor med sikker trekning.',
-      'Lage hjulkomponent som lander på forhåndsvalgt vinner.',
-      'Legge til tastaturkontroller og fullscreen senere.',
-    ],
-  },
-  history: {
-    title: 'Historikk er reservert for neste steg',
-    description:
-      'Historikk, undo og reset kommer senere. Fase 1 gjør det mulig å lagre og gjenopprette tom eller gyldig app-state uten backend.',
-    nextSteps: [
-      'Lagre runder i en testbar historikkmodell.',
-      'Legge til undo, restore og reset med bekreftelse.',
-      'Gjøre import og eksport mulig når grunnmuren er stabil.',
-    ],
-  },
-}
-
-const foundationChecklist = [
-  'Versjonert app-state med sterke TypeScript-typer',
-  'Sentral reducer for navigasjon og videre utvidelser',
-  'Trygg lesing og skriving til localStorage',
-  'Validering og fallback ved korrupt lagret data',
-  'Vitest-oppsett for logikktester',
-]
-
 function App() {
-  const { state, dispatch, hydration } = useLocalStorageReducer({
+  const { state, dispatch } = useLocalStorageReducer({
     storageKey: APP_STORAGE_KEY,
     reducer: appReducer,
     createInitialState: createInitialAppState,
     validate: validateAppState,
   })
 
-  const activeView = viewCopy[state.activeView]
   const stats = getAppStats(state)
 
   return (
     <div className="app-shell">
-      <header className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">React + TypeScript + Vite</p>
-          <h1>Uforberedt foredrag</h1>
-          <p className="lead">
-            Grunnmuren for appen er nå på plass: versjonert state, lokal lagring, validering og et
-            enkelt app-shell som kan bygges videre på i små steg.
-          </p>
-        </div>
+      <header className="site-header">
+        <div className="site-header__inner">
+          <div className="brand">
+            <h1>Uforberedt foredrag</h1>
+            <p className="lead">Et enkelt oppsett for deltakere, presentasjoner og runder.</p>
+          </div>
 
-        <div className="hero-card" aria-label="Status for lagret tilstand">
-          <p className="card-label">Lagringsstatus</p>
-          <strong>{getHydrationLabel(hydration.status)}</strong>
-          <p>{hydration.message ?? 'Ingen problemer oppdaget i lokal lagring.'}</p>
+          <nav className="top-nav" aria-label="Hovedvisninger">
+            {APP_VIEWS.map((view) => (
+              <button
+                key={view}
+                type="button"
+                className={view === state.activeView ? 'top-nav__button is-active' : 'top-nav__button'}
+                onClick={() => dispatch({ type: 'navigate', view })}
+                aria-current={view === state.activeView ? 'page' : undefined}
+              >
+                {APP_VIEW_LABELS[view]}
+              </button>
+            ))}
+          </nav>
         </div>
       </header>
 
-      <main className="layout">
-        <aside className="sidebar">
-          <section className="card">
-            <p className="card-label">App-shell</p>
-            <nav className="view-nav" aria-label="Hovedvisninger">
-              {APP_VIEWS.map((view) => (
-                <button
-                  key={view}
-                  type="button"
-                  className={view === state.activeView ? 'view-button is-active' : 'view-button'}
-                  onClick={() => dispatch({ type: 'navigate', view })}
-                  aria-current={view === state.activeView ? 'page' : undefined}
-                >
-                  {APP_VIEW_LABELS[view]}
-                </button>
-              ))}
-            </nav>
-          </section>
-
-          <section className="card">
-            <p className="card-label">Fase 1</p>
-            <h2>Det som er klart nå</h2>
-            <ul className="checklist">
-              {foundationChecklist.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        </aside>
-
-        <section className="content">
-          <section className="stats-grid" aria-label="Oversikt over nåværende data">
-            <article className="stat-card">
-              <p className="card-label">Deltakere</p>
-              <strong>{stats.participants.total}</strong>
-              <span>{stats.participants.available} tilgjengelige akkurat nå</span>
-            </article>
-
-            <article className="stat-card">
-              <p className="card-label">Presentasjoner</p>
-              <strong>{stats.presentations.total}</strong>
-              <span>{stats.presentations.available} tilgjengelige akkurat nå</span>
-            </article>
-
-            <article className="stat-card">
-              <p className="card-label">Runder</p>
-              <strong>{stats.historyCount}</strong>
-              <span>{state.currentRound ? 'En runde er klargjort' : 'Ingen aktiv runde ennå'}</span>
-            </article>
-          </section>
-
-          <section className="card view-panel">
-            <p className="card-label">Aktiv visning</p>
-            <h2>{activeView.title}</h2>
-            <p className="panel-copy">{activeView.description}</p>
-            <ul className="next-steps">
-              {activeView.nextSteps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-          </section>
-        </section>
+      <main className="page">
+        {state.activeView === 'setup' ? <SetupPlaceholder stats={stats} /> : null}
+        {state.activeView === 'event' ? <EventPlaceholder /> : null}
+        {state.activeView === 'history' ? <HistoryPlaceholder stats={stats} /> : null}
       </main>
     </div>
   )
 }
 
-function getHydrationLabel(status: ReturnType<typeof useLocalStorageReducer>['hydration']['status']) {
-  switch (status) {
-    case 'empty':
-      return 'Tom lokal lagring'
-    case 'loaded':
-      return 'Lagret state gjenopprettet'
-    case 'recovered':
-      return 'Korrupt state ble nullstilt'
-    case 'unavailable':
-      return 'Lokal lagring er utilgjengelig'
-    default:
-      return status
-  }
+type AppStats = ReturnType<typeof getAppStats>
+
+function SetupPlaceholder({ stats }: { stats: AppStats }) {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <p className="section-label">Oppsett</p>
+          <h2>Gjør klart arrangementet</h2>
+        </div>
+        <p className="status-line">
+          {formatCount(stats.participants.available, 'deltaker', 'deltakere')} tilgjengelige ·{' '}
+          {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige
+        </p>
+      </div>
+
+      <div className="setup-grid">
+        <section className="soft-panel">
+          <div className="soft-panel__header">
+            <h3>Deltakere</h3>
+            <button type="button" className="ghost-button" disabled>
+              Legg til deltaker
+            </button>
+          </div>
+          <p className="placeholder-copy">Deltakerlisten vises her når oppsettet tas i bruk.</p>
+          <ul className="placeholder-list" aria-label="Eksempel på deltakerliste">
+            <li>Ingen deltakere ennå</li>
+            <li>Tilgjengelig, brukt og deaktivert vises her</li>
+            <li>Flere deltakere kan legges til samtidig senere</li>
+          </ul>
+        </section>
+
+        <section className="soft-panel">
+          <div className="soft-panel__header">
+            <h3>Presentasjoner</h3>
+            <button type="button" className="ghost-button" disabled>
+              Legg til presentasjon
+            </button>
+          </div>
+          <p className="placeholder-copy">
+            Presentasjonstitler og lenker samles her før arrangementet starter.
+          </p>
+          <ul className="placeholder-list" aria-label="Eksempel på presentasjonsliste">
+            <li>Ingen presentasjoner ennå</li>
+            <li>Status og lenker vises samlet på ett sted</li>
+            <li>HTTP- og HTTPS-lenker legges til senere</li>
+          </ul>
+        </section>
+      </div>
+
+      <div className="panel-footer">
+        <button type="button" className="primary-button" disabled>
+          Start arrangement
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function EventPlaceholder() {
+  return (
+    <section className="panel panel--narrow">
+      <div className="panel-heading">
+        <div>
+          <p className="section-label">Event</p>
+          <h2>Visning for storskjerm</h2>
+        </div>
+      </div>
+
+      <div className="event-placeholder" aria-hidden="true">
+        <div className="event-placeholder__wheel" />
+      </div>
+
+      <p className="placeholder-copy">
+        Her kommer en enkel visning for trekning av deltaker og presentasjon, med fokus på store
+        knapper og tydelige valg.
+      </p>
+
+      <div className="panel-footer panel-footer--compact">
+        <button type="button" className="primary-button" disabled>
+          Spinn hjulet
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function HistoryPlaceholder({ stats }: { stats: AppStats }) {
+  return (
+    <section className="panel panel--narrow">
+      <div className="panel-heading">
+        <div>
+          <p className="section-label">Historikk</p>
+          <h2>Gjennomførte runder</h2>
+        </div>
+        <p className="status-line">{formatCount(stats.historyCount, 'runde', 'runder')} lagret</p>
+      </div>
+
+      <div className="history-placeholder" role="presentation">
+        <div className="history-placeholder__head">
+          <span>Runde</span>
+          <span>Deltaker</span>
+          <span>Presentasjon</span>
+        </div>
+        <p className="placeholder-copy">Bekreftede runder vises her når arrangementet er i gang.</p>
+      </div>
+    </section>
+  )
+}
+
+function formatCount(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`
 }
 
 export default App

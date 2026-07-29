@@ -25,6 +25,8 @@ Dette prosjektet skal videreutvikles som en frontend-only webapp i det eksistere
 - Tilstand, validering og randomisering skal være testbar logikk.
 - Løsningen skal tåle refresh og gjenopprettes fra `localStorage`.
 - UI skal være tilgjengelig med tydelige labels, knapper og feiltilstander.
+- Appen skal ha et minimalistisk arrangementgrensesnitt og et praktisk oppsett, ikke et utviklerdashboard.
+- Nye sider skal ikke fylles med utviklerforklaringer eller unødvendige dashboard-kort.
 - Nye funksjoner skal være i tråd med prosjektets plan i `PLAN.md`, med mindre brukeren ber om en bevisst endring av kurs.
 
 ## Verifisering etter endringer
