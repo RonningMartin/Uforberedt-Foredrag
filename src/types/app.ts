@@ -1,4 +1,11 @@
-import type { AppSettings, DraftRound, Participant, Presentation, RoundHistoryEntry } from './domain'
+import type {
+  AppSettings,
+  DraftRound,
+  EntityId,
+  Participant,
+  Presentation,
+  RoundHistoryEntry,
+} from './domain'
 
 export type AppView = 'setup' | 'event' | 'history'
 
@@ -16,6 +23,59 @@ export type AppAction =
   | {
       type: 'navigate'
       view: AppView
+    }
+  | {
+      type: 'addParticipant'
+      participant: Participant
+    }
+  | {
+      type: 'addParticipants'
+      participants: Participant[]
+    }
+  | {
+      type: 'updateParticipant'
+      participantId: EntityId
+      name: string
+    }
+  | {
+      type: 'deleteParticipant'
+      participantId: EntityId
+    }
+  | {
+      type: 'setParticipantActive'
+      participantId: EntityId
+      isActive: boolean
+    }
+  | {
+      type: 'restoreParticipant'
+      participantId: EntityId
+    }
+  | {
+      type: 'addPresentation'
+      presentation: Presentation
+    }
+  | {
+      type: 'addPresentations'
+      presentations: Presentation[]
+    }
+  | {
+      type: 'updatePresentation'
+      presentationId: EntityId
+      title: string
+      url: string
+    }
+  | {
+      type: 'deletePresentation'
+      presentationId: EntityId
+    }
+  | {
+      type: 'setPresentationActive'
+      presentationId: EntityId
+      isActive: boolean
+    }
+  | {
+      type: 'restorePresentation'
+      presentationId: EntityId
     }
   | {
       type: 'replaceState'
