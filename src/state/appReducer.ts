@@ -21,8 +21,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
 
     case 'confirmCurrentRound': {
+      const participantIds = getUniqueParticipantIds(
+        action.historyEntry.primaryParticipantId,
+        action.historyEntry.teammateParticipantId,
+      )
       const participants = state.participants.map((participant) =>
-        participant.id === action.historyEntry.participantId
+        participantIds.has(participant.id)
           ? {
               ...participant,
               isUsed: true,
@@ -54,10 +58,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         return state
       }
 
+      const participantIds = getUniqueParticipantIds(
+        lastHistoryEntry.primaryParticipantId,
+        lastHistoryEntry.teammateParticipantId,
+      )
+
       return withReconciledRound({
         ...state,
         participants: state.participants.map((participant) =>
-          participant.id === lastHistoryEntry.participantId
+          participantIds.has(participant.id)
             ? {
                 ...participant,
                 isUsed: false,
@@ -237,4 +246,17 @@ function withReconciledRound(nextState: AppState): AppState {
       nextState.history,
     ),
   }
+}
+
+function getUniqueParticipantIds(
+  primaryParticipantId: string,
+  teammateParticipantId: string | null,
+): Set<string> {
+  const ids = new Set<string>([primaryParticipantId])
+
+  if (teammateParticipantId !== null) {
+    ids.add(teammateParticipantId)
+  }
+
+  return ids
 }

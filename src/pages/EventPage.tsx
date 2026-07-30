@@ -17,17 +17,23 @@ import {
   createHistoryEntryFromRound,
   createParticipantRoundSelection,
   createPresentationRoundSelection,
+  createTeammateRoundSelection,
   getAvailableParticipants,
   getAvailablePresentations,
-  moveRoundBackToPresentation,
+  getAvailableTeammates,
   moveRoundBackToParticipant,
+  moveRoundBackToPresentation,
   moveRoundToConfirm,
   moveRoundToPresentation,
+  moveRoundToTeammateSelection,
+  removeTeammateFromRound,
   selectAvailableParticipant,
   selectAvailablePresentation,
+  selectAvailableTeammate,
 } from '../utils/roundLogic'
 import type { RandomSource } from '../utils/secureRandom'
 import { isValidPresentationUrl } from '../utils/setupValidation'
+import { formatTeamName, getTeamLabel } from '../utils/teamDisplay'
 import { calculateWheelRotation } from '../utils/wheelMath'
 
 interface EventPageProps {
@@ -38,7 +44,7 @@ interface EventPageProps {
   openWindow?: OpenWindowFn
 }
 
-type SpinPhase = 'participant' | 'presentation'
+type SpinPhase = 'primary' | 'teammate' | 'presentation'
 
 interface PendingSpinState {
   phase: SpinPhase
@@ -63,37 +69,54 @@ function EventPage({
   const round = state.currentRound
   const availableParticipants = getAvailableParticipants(state.participants)
   const availablePresentations = getAvailablePresentations(state.presentations)
-  const isSpinning = pendingSpin !== null
-  const isPresentationSelected =
-    round?.step === 'presentation' &&
-    round.presentationId !== null &&
-    round.presentationTitle !== null &&
-    round.presentationUrl !== null
-  const presentationHost =
-    round?.presentationUrl === null || round?.presentationUrl === undefined
-      ? null
-      : getPresentationHost(round.presentationUrl)
-  const visibleErrors = fullscreen.error === null ? errors : [fullscreen.error, ...errors]
+  const hasPrimaryParticipant = hasPrimarySelection(round)
+  const hasTeammateParticipant = hasTeammateSelection(round)
+  const availableTeammates = hasPrimaryParticipant
+    ? getAvailableTeammates(state.participants, round?.primaryParticipantId ?? null)
+    : []
+  const participantWheelItems =
+    round?.step === 'teammate' ? availableTeammates : availableParticipants
   const currentParticipantWinnerIndex = findWinnerIndex(
-    availableParticipants,
-    pendingSpin?.phase === 'participant' ? pendingSpin.winnerId : round?.participantId ?? null,
+    participantWheelItems,
+    getCurrentParticipantWinnerId(round, pendingSpin),
   )
   const currentPresentationWinnerIndex = findWinnerIndex(
     availablePresentations,
     pendingSpin?.phase === 'presentation' ? pendingSpin.winnerId : round?.presentationId ?? null,
   )
-  const canSpinParticipant =
+  const isSpinning = pendingSpin !== null
+  const isPresentationSelected = hasPresentationSelection(round)
+  const teamName = formatTeamName(
+    round?.primaryParticipantName ?? null,
+    round?.teammateParticipantName ?? null,
+  )
+  const participantLabel = getTeamLabel(round?.teammateParticipantName ?? null)
+  const presentationHost =
+    round?.presentationUrl === null || round?.presentationUrl === undefined
+      ? null
+      : getPresentationHost(round.presentationUrl)
+  const visibleErrors = fullscreen.error === null ? errors : [fullscreen.error, ...errors]
+  const canSpinPrimary =
     !isSpinning &&
     availableParticipants.length > 0 &&
     (round === null || round.step === 'participant')
+  const canSpinTeammate =
+    !isSpinning && round?.step === 'teammate' && availableTeammates.length > 0
   const canSpinPresentation =
     !isSpinning && availablePresentations.length > 0 && round?.step === 'presentation'
-  const canAdvance =
-    !isSpinning &&
-    ((round?.step === 'participant' && round.participantId !== null) || isPresentationSelected)
+  const canAddTeammate =
+    !isSpinning && round?.step === 'participant' && hasPrimaryParticipant && availableTeammates.length > 0
+  const canContinueSolo = !isSpinning && round?.step === 'participant' && hasPrimaryParticipant
+  const canContinueWithTeammate =
+    !isSpinning && round?.step === 'teammate' && hasTeammateParticipant
   const canConfirm = !isSpinning && round?.step === 'confirm'
   const canCancel = !isSpinning && round !== null && round.step !== 'complete'
-  const canSpinCurrentWheel = canSpinParticipant || canSpinPresentation
+  const canSpinCurrentWheel = canSpinPrimary || canSpinTeammate || canSpinPresentation
+  const canAdvance =
+    !isSpinning &&
+    ((round?.step === 'participant' && hasPrimaryParticipant) ||
+      (round?.step === 'teammate' && hasTeammateParticipant) ||
+      (round?.step === 'presentation' && isPresentationSelected))
 
   useEventKeyboardShortcuts({
     enabled: true,
@@ -126,7 +149,7 @@ function EventPage({
     const winnerIndex = availableParticipants.findIndex((participant) => participant.id === result.data.id)
     const now = new Date().toISOString()
     setPendingSpin({
-      phase: 'participant',
+      phase: 'primary',
       winnerId: result.data.id,
       roundId: round?.step === 'complete' ? createEntityId() : round?.id ?? createEntityId(),
       startedAt: round?.step === 'complete' ? now : round?.startedAt ?? now,
@@ -142,10 +165,50 @@ function EventPage({
     fullscreen.clearError()
   }
 
+  function handleSpinTeammate() {
+    if (isSpinning || round?.step !== 'teammate') {
+      return
+    }
+
+    const result = selectAvailableTeammate(
+      state.participants,
+      round.primaryParticipantId,
+      participantRandomSource,
+    )
+
+    if (!result.success) {
+      setErrors(result.errors)
+      return
+    }
+
+    const winnerIndex = availableTeammates.findIndex((participant) => participant.id === result.data.id)
+    setPendingSpin({
+      phase: 'teammate',
+      winnerId: result.data.id,
+    })
+    setParticipantRotation((currentRotation) =>
+      calculateWheelRotation({
+        itemCount: availableTeammates.length,
+        winnerIndex,
+        currentRotation,
+      }),
+    )
+    setErrors([])
+    fullscreen.clearError()
+  }
+
   function handleContinueToPresentation() {
     dispatch({
       type: 'setCurrentRound',
       currentRound: moveRoundToPresentation(round),
+    })
+    setErrors([])
+  }
+
+  function handleMoveToTeammateSelection() {
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: moveRoundToTeammateSelection(round),
     })
     setErrors([])
   }
@@ -180,10 +243,10 @@ function EventPage({
     fullscreen.clearError()
   }
 
-  function handleParticipantSpinEnd() {
+  function handlePrimarySpinEnd() {
     if (
       pendingSpin === null ||
-      pendingSpin.phase !== 'participant' ||
+      pendingSpin.phase !== 'primary' ||
       pendingSpin.roundId === undefined ||
       pendingSpin.startedAt === undefined
     ) {
@@ -209,6 +272,33 @@ function EventPage({
         pendingSpin.roundId,
         pendingSpin.startedAt,
       ),
+    })
+  }
+
+  function handleTeammateSpinEnd() {
+    if (pendingSpin === null || pendingSpin.phase !== 'teammate') {
+      return
+    }
+
+    const selectedTeammate = getAvailableTeammates(
+      state.participants,
+      round?.primaryParticipantId ?? null,
+    ).find((participant) => participant.id === pendingSpin.winnerId)
+
+    setPendingSpin(null)
+
+    if (selectedTeammate === undefined) {
+      setErrors(['Den valgte lagkameraten er ikke lenger tilgjengelig. Spinn på nytt.'])
+      dispatch({
+        type: 'setCurrentRound',
+        currentRound: moveRoundToTeammateSelection(round),
+      })
+      return
+    }
+
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: createTeammateRoundSelection(round, selectedTeammate),
     })
   }
 
@@ -238,7 +328,7 @@ function EventPage({
     })
   }
 
-  function handleBackToParticipant() {
+  function handleBackToParticipantPhase() {
     dispatch({
       type: 'setCurrentRound',
       currentRound: moveRoundBackToParticipant(round),
@@ -258,6 +348,14 @@ function EventPage({
     dispatch({
       type: 'setCurrentRound',
       currentRound: moveRoundToConfirm(round),
+    })
+    setErrors([])
+  }
+
+  function handleRemoveTeammate() {
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: removeTeammateFromRound(round),
     })
     setErrors([])
   }
@@ -314,6 +412,11 @@ function EventPage({
       return
     }
 
+    if (round.step === 'teammate') {
+      handleSpinTeammate()
+      return
+    }
+
     if (round.step === 'presentation') {
       handleSpinPresentation()
     }
@@ -321,6 +424,11 @@ function EventPage({
 
   function handleAdvance() {
     if (round?.step === 'participant') {
+      handleContinueToPresentation()
+      return
+    }
+
+    if (round?.step === 'teammate' && hasTeammateParticipant) {
       handleContinueToPresentation()
       return
     }
@@ -399,10 +507,10 @@ function EventPage({
               label: participant.name,
             }))}
             rotation={participantRotation}
-            spinning={pendingSpin?.phase === 'participant'}
+            spinning={pendingSpin?.phase === 'primary'}
             winnerIndex={currentParticipantWinnerIndex}
             emptyLabel="Ingen deltakere igjen"
-            onSpinEnd={handleParticipantSpinEnd}
+            onSpinEnd={handlePrimarySpinEnd}
           />
           <p className="placeholder-copy event-stage__copy">
             Start med å trekke en deltaker blant dem som fortsatt er aktive og tilgjengelige.
@@ -412,7 +520,7 @@ function EventPage({
               type="button"
               className="primary-button"
               onClick={handleSpinParticipant}
-              disabled={!canSpinParticipant}
+              disabled={!canSpinPrimary}
             >
               Spinn hjulet
             </button>
@@ -429,13 +537,28 @@ function EventPage({
               label: participant.name,
             }))}
             rotation={participantRotation}
-            spinning={pendingSpin?.phase === 'participant'}
+            spinning={pendingSpin?.phase === 'primary'}
             winnerIndex={currentParticipantWinnerIndex}
             emptyLabel="Ingen deltakere igjen"
-            onSpinEnd={handleParticipantSpinEnd}
+            onSpinEnd={handlePrimarySpinEnd}
           />
-          <RoundResult label="Valgt deltaker" value={round.participantName ?? 'Ukjent deltaker'} />
-          <div className="event-actions">
+          <RoundResult label="Valgt deltaker" value={round.primaryParticipantName ?? 'Ukjent deltaker'} />
+          <div className="event-actions event-actions--participant">
+            {!canAddTeammate ? (
+              <p className="event-actions__hint">
+                Ingen tilgjengelig lagkamerat akkurat nå.
+              </p>
+            ) : null}
+            <div className="event-actions__utility">
+              <button
+                type="button"
+                className="ghost-button event-actions__utility-button"
+                onClick={handleSpinParticipant}
+                disabled={!canSpinPrimary}
+              >
+                Spinn på nytt
+              </button>
+            </div>
             <div className="event-actions__grid">
               <div className="event-actions__slot event-actions__slot--start">
                 <button
@@ -451,10 +574,10 @@ function EventPage({
                 <button
                   type="button"
                   className="ghost-button"
-                  onClick={handleSpinParticipant}
-                  disabled={!canSpinParticipant}
+                  onClick={handleMoveToTeammateSelection}
+                  disabled={!canAddTeammate}
                 >
-                  Spinn på nytt
+                  Legg til lagkamerat
                 </button>
               </div>
               <div className="event-actions__slot event-actions__slot--end">
@@ -462,9 +585,9 @@ function EventPage({
                   type="button"
                   className="primary-button"
                   onClick={handleContinueToPresentation}
-                  disabled={!canAdvance}
+                  disabled={!canContinueSolo}
                 >
-                  Fortsett
+                  Fortsett alene
                 </button>
               </div>
             </div>
@@ -472,9 +595,121 @@ function EventPage({
         </div>
       ) : null}
 
+      {round?.step === 'teammate' ? (
+        <div className="event-stage event-stage--wheel">
+          <div className="event-results-grid">
+            <RoundResult
+              label="På lag med"
+              value={round.primaryParticipantName ?? 'Ukjent deltaker'}
+            />
+            {hasTeammateParticipant ? (
+              <RoundResult label="Valgt lag" value={teamName} />
+            ) : null}
+          </div>
+          <Wheel
+            ariaLabel="Hjul med tilgjengelige lagkamerater"
+            items={availableTeammates.map((participant) => ({
+              id: participant.id,
+              label: participant.name,
+            }))}
+            rotation={participantRotation}
+            spinning={pendingSpin?.phase === 'teammate'}
+            winnerIndex={currentParticipantWinnerIndex}
+            emptyLabel="Ingen lagkamerater igjen"
+            onSpinEnd={handleTeammateSpinEnd}
+          />
+
+          {!hasTeammateParticipant ? (
+            <>
+              <p className="placeholder-copy event-stage__copy">
+                {availableTeammates.length === 0
+                  ? 'Ingen tilgjengelig lagkamerat finnes akkurat nå. Du kan fortsette alene eller avbryte runden.'
+                  : `Velg en lagkamerat for ${round.primaryParticipantName ?? 'deltakeren'}.`}
+              </p>
+              <div className="event-actions">
+                <div className="event-actions__grid">
+                  <div className="event-actions__slot event-actions__slot--start">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={handleRemoveTeammate}
+                    >
+                      Fortsett alene
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--center">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={handleSpinTeammate}
+                      disabled={!canSpinTeammate}
+                    >
+                      Spinn hjulet
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--end">
+                    <button
+                      type="button"
+                      className="text-button event-actions__text-button"
+                      onClick={handleCancelRound}
+                      disabled={!canCancel}
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="event-actions event-actions--participant">
+              <div className="event-actions__utility">
+                <button
+                  type="button"
+                  className="ghost-button event-actions__utility-button"
+                  onClick={handleSpinTeammate}
+                  disabled={!canSpinTeammate}
+                >
+                  Spinn lagkamerat på nytt
+                </button>
+                <button
+                  type="button"
+                  className="text-button event-actions__text-button"
+                  onClick={handleCancelRound}
+                  disabled={!canCancel}
+                >
+                  Avbryt
+                </button>
+              </div>
+              <div className="event-actions__grid">
+                <div className="event-actions__slot event-actions__slot--start">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={handleRemoveTeammate}
+                  >
+                    Fjern lagkamerat
+                  </button>
+                </div>
+                <div className="event-actions__slot event-actions__slot--center" aria-hidden="true" />
+                <div className="event-actions__slot event-actions__slot--end">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={handleContinueToPresentation}
+                    disabled={!canContinueWithTeammate}
+                  >
+                    Fortsett til presentasjon
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {round?.step === 'presentation' ? (
         <div className="event-stage event-stage--wheel">
-          <RoundResult label="Deltaker" value={round.participantName ?? 'Ukjent deltaker'} />
+          <RoundResult label={participantLabel} value={teamName} />
           <Wheel
             ariaLabel="Hjul med tilgjengelige presentasjoner"
             items={availablePresentations.map((presentation) => ({
@@ -499,7 +734,7 @@ function EventPage({
                     <button
                       type="button"
                       className="ghost-button"
-                      onClick={handleBackToParticipant}
+                      onClick={handleBackToParticipantPhase}
                       disabled={isSpinning}
                     >
                       Tilbake
@@ -559,7 +794,7 @@ function EventPage({
                     <button
                       type="button"
                       className="ghost-button"
-                      onClick={handleBackToParticipant}
+                      onClick={handleBackToParticipantPhase}
                       disabled={isSpinning}
                     >
                       Tilbake
@@ -573,7 +808,7 @@ function EventPage({
                       type="button"
                       className="primary-button"
                       onClick={handleContinueToConfirm}
-                      disabled={!canAdvance}
+                      disabled={!isPresentationSelected}
                     >
                       Fortsett
                     </button>
@@ -588,7 +823,7 @@ function EventPage({
       {round?.step === 'confirm' ? (
         <div className="event-stage">
           <div className="event-results-grid">
-            <RoundResult label="Deltaker" value={round.participantName ?? 'Ukjent deltaker'} />
+            <RoundResult label={participantLabel} value={teamName} />
             <RoundResult
               label="Presentasjon"
               value={round.presentationTitle ?? 'Ukjent presentasjon'}
@@ -638,7 +873,7 @@ function EventPage({
       {round?.step === 'complete' ? (
         <div className="event-stage">
           <div className="event-results-grid">
-            <RoundResult label="Deltaker" value={round.participantName ?? 'Ukjent deltaker'} />
+            <RoundResult label={participantLabel} value={teamName} />
             <RoundResult
               label="Presentasjon"
               value={round.presentationTitle ?? 'Ukjent presentasjon'}
@@ -646,7 +881,7 @@ function EventPage({
             />
           </div>
           <p className="placeholder-copy event-stage__copy">
-            Runden er bekreftet og lagret. Både deltaker og presentasjon er nå markert som brukt.
+            Runden er bekreftet og lagret. Alle deltakere i laget og presentasjonen er nå markert som brukt.
           </p>
           <div className="event-actions">
             <div className="event-actions__grid event-actions__grid--complete">
@@ -668,6 +903,10 @@ function EventPage({
 }
 
 function getHeading(round: AppState['currentRound']) {
+  if (round?.step === 'teammate') {
+    return 'Velg lagkamerat'
+  }
+
   if (round?.step === 'presentation') {
     return 'Velg presentasjon'
   }
@@ -692,7 +931,7 @@ function getStepClass(round: AppState['currentRound'], step: 'participant' | 'pr
   }
 
   const currentValue =
-    currentStep === 'participant'
+    currentStep === 'participant' || currentStep === 'teammate'
       ? 1
       : currentStep === 'presentation'
         ? 2
@@ -713,6 +952,37 @@ function findWinnerIndex(items: { id: string }[], winnerId: string | null): numb
   const index = items.findIndex((item) => item.id === winnerId)
 
   return index === -1 ? null : index
+}
+
+function getCurrentParticipantWinnerId(
+  round: AppState['currentRound'],
+  pendingSpin: PendingSpinState | null,
+): string | null {
+  if (pendingSpin?.phase === 'primary' || pendingSpin?.phase === 'teammate') {
+    return pendingSpin.winnerId
+  }
+
+  if (round?.step === 'teammate') {
+    return round.teammateParticipantId
+  }
+
+  return round?.primaryParticipantId ?? null
+}
+
+function hasPrimarySelection(round: AppState['currentRound']) {
+  return round?.primaryParticipantId !== null && round?.primaryParticipantName !== null
+}
+
+function hasTeammateSelection(round: AppState['currentRound']) {
+  return round?.teammateParticipantId !== null && round?.teammateParticipantName !== null
+}
+
+function hasPresentationSelection(round: AppState['currentRound']) {
+  return (
+    round?.presentationId !== null &&
+    round?.presentationTitle !== null &&
+    round?.presentationUrl !== null
+  )
 }
 
 function renderPresentationOpenAction(

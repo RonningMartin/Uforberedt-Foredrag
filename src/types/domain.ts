@@ -15,13 +15,15 @@ export interface Presentation {
   isUsed: boolean
 }
 
-export type RoundStep = 'participant' | 'presentation' | 'confirm' | 'complete'
+export type RoundStep = 'participant' | 'teammate' | 'presentation' | 'confirm' | 'complete'
 
 export interface DraftRound {
   id: EntityId
   step: RoundStep
-  participantId: EntityId | null
-  participantName: string | null
+  primaryParticipantId: EntityId | null
+  primaryParticipantName: string | null
+  teammateParticipantId: EntityId | null
+  teammateParticipantName: string | null
   presentationId: EntityId | null
   presentationTitle: string | null
   presentationUrl: string | null
@@ -32,8 +34,10 @@ export interface DraftRound {
 export interface RoundHistoryEntry {
   id: EntityId
   roundNumber: number
-  participantId: EntityId
-  participantName: string
+  primaryParticipantId: EntityId
+  primaryParticipantName: string
+  teammateParticipantId: EntityId | null
+  teammateParticipantName: string | null
   presentationId: EntityId
   presentationTitle: string
   presentationUrl: string

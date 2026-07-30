@@ -654,6 +654,12 @@ body {
   color: rgba(255, 250, 242, 0.78);
 }
 
+.event-actions__hint {
+  margin: 0;
+  color: rgba(255, 250, 242, 0.72);
+  font-size: 0.96rem;
+}
+
 .event-actions {
   width: min(100%, 60rem);
   display: grid;
@@ -936,6 +942,30 @@ body {
   min-width: 0;
 }
 
+.history-card__participant-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
+.history-card__participant-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding-top: 0.35rem;
+}
+
+.history-card__participant-copy {
+  min-width: 0;
+}
+
+.history-card__participant-name {
+  margin: 0;
+  font-weight: 600;
+  color: #14213d;
+}
+
 .history-card__round,
 .history-card__label {
   margin: 0;
@@ -1011,6 +1041,10 @@ body {
   .event-actions__slot--center,
   .event-actions__slot--end {
     justify-content: center;
+  }
+
+  .history-card__participant-row {
+    flex-direction: column;
   }
 }
 

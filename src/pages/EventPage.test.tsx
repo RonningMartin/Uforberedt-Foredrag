@@ -4,8 +4,8 @@ import { act, useEffect, useReducer } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { appReducer } from '../state/appReducer'
 import { createInitialAppState } from '../state/appState'
+import { appReducer } from '../state/appReducer'
 import type { AppState } from '../types/app'
 import type { RandomSource } from '../utils/secureRandom'
 import EventPage from './EventPage'
@@ -28,7 +28,6 @@ class QueueRandomSource implements RandomSource {
 interface RenderResult {
   container: HTMLDivElement
   getButton: (label: string) => HTMLButtonElement
-  getLink: (label: string) => HTMLAnchorElement
   clickControl: (label: string) => void
   dispatchKey: (target: EventTarget, key: string, options?: KeyboardOptions) => void
   finishSpin: () => void
@@ -76,36 +75,77 @@ describe('EventPage', () => {
 
     expect(view.container.textContent).toContain('Valgt deltaker')
     expect(view.container.textContent).toContain('Bjarne')
-    expect(view.getLatestState().currentRound?.participantName).toBe('Bjarne')
+    expect(view.getLatestState().currentRound?.primaryParticipantName).toBe('Bjarne')
   })
 
-  it('replaces only the temporary selection when spinning again', () => {
+  it('supports the teammate flow and only replaces the temporary teammate when spinning again', () => {
     const view = renderEventPage({
-      participantRandomValues: [0, 1],
+      initialState: createBaseState({
+        participants: [
+          createParticipant('participant-1', 'Ada'),
+          createParticipant('participant-2', 'Bjarne'),
+          createParticipant('participant-3', 'Cora'),
+        ],
+      }),
+      participantRandomValues: [0, 1, 0],
     })
 
     view.clickControl('Spinn hjulet')
     view.finishSpin()
-    expect(view.getLatestState().currentRound?.participantName).toBe('Ada')
+    view.clickControl('Legg til lagkamerat')
 
-    view.clickControl('Spinn på nytt')
-    expect(view.getButton('Spinn på nytt').disabled).toBe(true)
+    view.clickControl('Spinn hjulet')
     view.finishSpin()
 
-    expect(view.getLatestState().currentRound?.participantName).toBe('Bjarne')
+    expect(view.getLatestState().currentRound).toMatchObject({
+      step: 'teammate',
+      primaryParticipantName: 'Ada',
+      teammateParticipantName: 'Cora',
+    })
+    expect(view.container.textContent).toContain('Ada + Cora')
+
+    view.clickControl('Spinn lagkamerat på nytt')
+    view.finishSpin()
+
+    expect(view.getLatestState().currentRound).toMatchObject({
+      step: 'teammate',
+      primaryParticipantName: 'Ada',
+      teammateParticipantName: 'Bjarne',
+    })
+    expect(view.container.textContent).toContain('Ada + Bjarne')
     expect(view.getLatestState().participants.every((participant) => participant.isUsed === false)).toBe(true)
     expect(view.getLatestState().history).toHaveLength(0)
   })
 
-  it('handles a single available participant safely', () => {
+  it('can remove a teammate and continue as a solorunde', () => {
+    const view = renderEventPage({
+      participantRandomValues: [0, 0],
+    })
+
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+    view.clickControl('Legg til lagkamerat')
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+
+    expect(view.getLatestState().currentRound?.teammateParticipantName).toBe('Bjarne')
+
+    view.clickControl('Fjern lagkamerat')
+
+    expect(view.getLatestState().currentRound).toMatchObject({
+      step: 'participant',
+      primaryParticipantName: 'Ada',
+      teammateParticipantId: null,
+      teammateParticipantName: null,
+    })
+    expect(view.container.textContent).toContain('Fortsett alene')
+  })
+
+  it('shows a clear explanation when no valid teammate remains', () => {
     const initialState = createBaseState({
       participants: [
-        {
-          id: 'participant-1',
-          name: 'Ada',
-          isActive: true,
-          isUsed: false,
-        },
+        createParticipant('participant-1', 'Ada'),
+        createParticipant('participant-2', 'Bjarne', { isActive: false }),
       ],
     })
     const view = renderEventPage({
@@ -116,11 +156,36 @@ describe('EventPage', () => {
     view.clickControl('Spinn hjulet')
     view.finishSpin()
 
-    expect(view.getLatestState().currentRound?.participantName).toBe('Ada')
-    expect(view.container.textContent).toContain('Valgt deltaker')
+    expect(view.getButton('Legg til lagkamerat').disabled).toBe(true)
+    expect(view.container.textContent).toContain('Ingen tilgjengelig lagkamerat akkurat nå.')
   })
 
-  it('supports keyboard shortcuts and ignores repeated presses or editable targets', () => {
+  it('cancels an unfinished lagrunde without marking anyone as used', () => {
+    const view = renderEventPage({
+      initialState: createBaseState({
+        participants: [
+          createParticipant('participant-1', 'Ada'),
+          createParticipant('participant-2', 'Bjarne'),
+          createParticipant('participant-3', 'Cora'),
+        ],
+      }),
+      participantRandomValues: [0, 1],
+    })
+
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+    view.clickControl('Legg til lagkamerat')
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+    view.clickControl('Avbryt')
+
+    expect(view.getLatestState().currentRound).toBeNull()
+    expect(view.getLatestState().participants.every((participant) => participant.isUsed === false)).toBe(true)
+    expect(view.getLatestState().presentations.every((presentation) => presentation.isUsed === false)).toBe(true)
+    expect(view.getLatestState().history).toHaveLength(0)
+  })
+
+  it('keeps the existing keyboard flow working for a solorunde', () => {
     const view = renderEventPage({
       participantRandomValues: [0],
       presentationRandomValues: [1],
@@ -141,7 +206,6 @@ describe('EventPage', () => {
     input.focus()
     view.dispatchKey(input, ' ')
     expect(view.getLatestState().currentRound?.presentationId).toBeNull()
-    expect(view.getButton('Spinn hjulet').disabled).toBe(false)
 
     view.dispatchKey(window, ' ')
     view.finishSpin()
@@ -153,6 +217,7 @@ describe('EventPage', () => {
     view.dispatchKey(window, 'Enter')
     expect(view.getLatestState().currentRound?.step).toBe('complete')
     expect(view.getLatestState().history).toHaveLength(1)
+    expect(view.getLatestState().history[0]?.teammateParticipantId).toBeNull()
   })
 
   it('opens the selected presentation with the correct URL without confirming the round', () => {
@@ -161,8 +226,10 @@ describe('EventPage', () => {
       currentRound: {
         id: 'round-1',
         step: 'presentation',
-        participantId: 'participant-1',
-        participantName: 'Ada',
+        primaryParticipantId: 'participant-1',
+        primaryParticipantName: 'Ada',
+        teammateParticipantId: 'participant-2',
+        teammateParticipantName: 'Bjarne',
         presentationId: 'presentation-1',
         presentationTitle: 'Romskip',
         presentationUrl: 'https://example.com/romskip',
@@ -241,17 +308,6 @@ function renderEventPage(options: {
 
       return button
     },
-    getLink: (label) => {
-      const link = Array.from(host.querySelectorAll('a')).find(
-        (candidate) => candidate.textContent?.trim() === label,
-      )
-
-      if (!(link instanceof HTMLAnchorElement)) {
-        throw new Error(`Link not found: ${label}`)
-      }
-
-      return link
-    },
     clickControl: (label) => {
       const control =
         Array.from(host.querySelectorAll('button, a')).find(
@@ -302,18 +358,8 @@ function createBaseState(overrides?: Partial<AppState>): AppState {
     ...createInitialAppState(),
     activeView: 'event',
     participants: [
-      {
-        id: 'participant-1',
-        name: 'Ada',
-        isActive: true,
-        isUsed: false,
-      },
-      {
-        id: 'participant-2',
-        name: 'Bjarne',
-        isActive: true,
-        isUsed: false,
-      },
+      createParticipant('participant-1', 'Ada'),
+      createParticipant('participant-2', 'Bjarne'),
     ],
     presentations: [
       {
@@ -332,5 +378,21 @@ function createBaseState(overrides?: Partial<AppState>): AppState {
       },
     ],
     ...overrides,
+  }
+}
+
+function createParticipant(
+  id: string,
+  name: string,
+  overrides?: Partial<{
+    isActive: boolean
+    isUsed: boolean
+  }>,
+) {
+  return {
+    id,
+    name,
+    isActive: overrides?.isActive ?? true,
+    isUsed: overrides?.isUsed ?? false,
   }
 }

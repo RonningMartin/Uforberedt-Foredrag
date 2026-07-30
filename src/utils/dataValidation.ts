@@ -13,7 +13,7 @@ import { reconcileCurrentRound } from './roundLogic'
 type UnknownRecord = Record<string, unknown>
 
 const validViews: readonly AppView[] = ['setup', 'event', 'history']
-const validRoundSteps: readonly RoundStep[] = ['participant', 'presentation', 'confirm', 'complete']
+const validRoundSteps: readonly RoundStep[] = ['participant', 'teammate', 'presentation', 'confirm', 'complete']
 
 export function validateAppState(value: unknown): ValidationResult<AppState> {
   const errors: string[] = []
@@ -129,8 +129,26 @@ function validateHistoryEntry(value: unknown, path: string): ValidationResult<Ro
 
   const id = readString(value.id, `${path}.id`, errors)
   const roundNumber = readPositiveInteger(value.roundNumber, `${path}.roundNumber`, errors)
-  const participantId = readString(value.participantId, `${path}.participantId`, errors)
-  const participantName = readString(value.participantName, `${path}.participantName`, errors)
+  const primaryParticipantId = readString(
+    getLegacyCompatibleValue(value, 'primaryParticipantId', 'participantId'),
+    `${path}.primaryParticipantId`,
+    errors,
+  )
+  const primaryParticipantName = readString(
+    getLegacyCompatibleValue(value, 'primaryParticipantName', 'participantName'),
+    `${path}.primaryParticipantName`,
+    errors,
+  )
+  const teammateParticipantId = readOptionalNullableString(
+    value.teammateParticipantId,
+    `${path}.teammateParticipantId`,
+    errors,
+  )
+  const teammateParticipantName = readOptionalNullableString(
+    value.teammateParticipantName,
+    `${path}.teammateParticipantName`,
+    errors,
+  )
   const presentationId = readString(value.presentationId, `${path}.presentationId`, errors)
   const presentationTitle = readString(value.presentationTitle, `${path}.presentationTitle`, errors)
   const presentationUrl = readString(value.presentationUrl, `${path}.presentationUrl`, errors)
@@ -145,8 +163,10 @@ function validateHistoryEntry(value: unknown, path: string): ValidationResult<Ro
     data: {
       id,
       roundNumber,
-      participantId,
-      participantName,
+      primaryParticipantId,
+      primaryParticipantName,
+      teammateParticipantId,
+      teammateParticipantName,
       presentationId,
       presentationTitle,
       presentationUrl,
@@ -164,8 +184,26 @@ function validateDraftRound(value: unknown, path: string): ValidationResult<Draf
 
   const id = readString(value.id, `${path}.id`, errors)
   const step = readRoundStep(value.step, `${path}.step`, errors)
-  const participantId = readNullableString(value.participantId, `${path}.participantId`, errors)
-  const participantName = readNullableString(value.participantName, `${path}.participantName`, errors)
+  const primaryParticipantId = readNullableString(
+    getLegacyCompatibleValue(value, 'primaryParticipantId', 'participantId'),
+    `${path}.primaryParticipantId`,
+    errors,
+  )
+  const primaryParticipantName = readNullableString(
+    getLegacyCompatibleValue(value, 'primaryParticipantName', 'participantName'),
+    `${path}.primaryParticipantName`,
+    errors,
+  )
+  const teammateParticipantId = readOptionalNullableString(
+    value.teammateParticipantId,
+    `${path}.teammateParticipantId`,
+    errors,
+  )
+  const teammateParticipantName = readOptionalNullableString(
+    value.teammateParticipantName,
+    `${path}.teammateParticipantName`,
+    errors,
+  )
   const presentationId = readNullableString(
     value.presentationId,
     `${path}.presentationId`,
@@ -193,8 +231,10 @@ function validateDraftRound(value: unknown, path: string): ValidationResult<Draf
     data: {
       id,
       step,
-      participantId,
-      participantName,
+      primaryParticipantId,
+      primaryParticipantName,
+      teammateParticipantId,
+      teammateParticipantName,
       presentationId,
       presentationTitle,
       presentationUrl,
@@ -341,6 +381,14 @@ function readNullableString(value: unknown, path: string, errors: string[]): str
   return readString(value, path, errors)
 }
 
+function readOptionalNullableString(value: unknown, path: string, errors: string[]): string | null {
+  if (value === undefined) {
+    return null
+  }
+
+  return readNullableString(value, path, errors)
+}
+
 function readBoolean(value: unknown, path: string, errors: string[]): boolean {
   if (typeof value !== 'boolean') {
     errors.push(`${path} må være true eller false.`)
@@ -361,6 +409,18 @@ function readPositiveInteger(value: unknown, path: string, errors: string[]): nu
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getLegacyCompatibleValue(
+  value: UnknownRecord,
+  currentKey: string,
+  legacyKey: string,
+): unknown {
+  if (currentKey in value) {
+    return value[currentKey]
+  }
+
+  return value[legacyKey]
 }
 
 function failure(message: string): ValidationResult<never> {

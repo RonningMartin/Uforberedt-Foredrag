@@ -4,6 +4,7 @@ import type {
   Presentation,
   RoundHistoryEntry,
 } from '../types/domain'
+import { formatTeamName, getTeamLabel } from '../utils/teamDisplay'
 
 interface HistoryListProps {
   history: readonly RoundHistoryEntry[]
@@ -27,10 +28,9 @@ function HistoryList({
   return (
     <ol className="history-list">
       {[...history].reverse().map((entry, index) => {
-        const participant = participants.find((candidate) => candidate.id === entry.participantId)
+        const participantEntries = getParticipantEntries(entry)
         const presentation = presentations.find((candidate) => candidate.id === entry.presentationId)
-        const participantRestore = getRestoreState(participant, 'participant')
-        const presentationRestore = getRestoreState(presentation, 'presentation')
+        const presentationRestore = getPresentationRestoreState(presentation)
 
         return (
           <li key={entry.id} className="history-card">
@@ -46,19 +46,38 @@ function HistoryList({
 
             <div className="history-card__grid">
               <section className="history-card__section">
-                <p className="history-card__label">Deltaker</p>
-                <strong>{entry.participantName}</strong>
-                {participantRestore.hint !== null ? (
-                  <p className="history-card__hint">{participantRestore.hint}</p>
-                ) : null}
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => onRestoreParticipant(entry.participantId)}
-                  disabled={participantRestore.disabled}
-                >
-                  {participantRestore.label}
-                </button>
+                <p className="history-card__label">{getTeamLabel(entry.teammateParticipantName)}</p>
+                <strong>{formatTeamName(entry.primaryParticipantName, entry.teammateParticipantName)}</strong>
+                <div className="history-card__participant-list">
+                  {participantEntries.map((participantEntry) => {
+                    const participant = participants.find(
+                      (candidate) => candidate.id === participantEntry.id,
+                    )
+                    const restoreState = getParticipantRestoreState(
+                      participant,
+                      participantEntry.role,
+                    )
+
+                    return (
+                      <div key={`${participantEntry.role}-${participantEntry.id}`} className="history-card__participant-row">
+                        <div className="history-card__participant-copy">
+                          <p className="history-card__participant-name">{participantEntry.name}</p>
+                          {restoreState.hint !== null ? (
+                            <p className="history-card__hint">{restoreState.hint}</p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => onRestoreParticipant(participantEntry.id)}
+                          disabled={restoreState.disabled}
+                        >
+                          {restoreState.label}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
               </section>
 
               <section className="history-card__section">
@@ -93,19 +112,53 @@ function HistoryList({
   )
 }
 
+type ParticipantRole = 'participant' | 'primary' | 'teammate'
+
+interface ParticipantEntry {
+  id: string
+  name: string
+  role: ParticipantRole
+}
+
 interface RestoreState {
   label: string
   disabled: boolean
   hint: string | null
 }
 
-function getRestoreState(
-  entity: Participant | Presentation | undefined,
-  entityType: 'participant' | 'presentation',
+function getParticipantEntries(entry: RoundHistoryEntry): ParticipantEntry[] {
+  const entries: ParticipantEntry[] = [
+    {
+      id: entry.primaryParticipantId,
+      name: entry.primaryParticipantName,
+      role: entry.teammateParticipantId === null ? 'participant' : 'primary',
+    },
+  ]
+
+  if (
+    entry.teammateParticipantId !== null &&
+    entry.teammateParticipantName !== null &&
+    entry.teammateParticipantId !== entry.primaryParticipantId
+  ) {
+    entries.push({
+      id: entry.teammateParticipantId,
+      name: entry.teammateParticipantName,
+      role: 'teammate',
+    })
+  }
+
+  return entries
+}
+
+function getParticipantRestoreState(
+  entity: Participant | undefined,
+  role: ParticipantRole,
 ): RestoreState {
+  const labels = getParticipantLabels(role)
+
   if (entity === undefined) {
     return {
-      label: entityType === 'participant' ? 'Deltakeren er slettet' : 'Presentasjonen er slettet',
+      label: labels.deleted,
       disabled: true,
       hint: 'Elementet finnes ikke lenger i oppsettet.',
     }
@@ -113,16 +166,66 @@ function getRestoreState(
 
   if (entity.isActive && !entity.isUsed) {
     return {
-      label: entityType === 'participant' ? 'Deltakeren er allerede tilgjengelig' : 'Presentasjonen er allerede tilgjengelig',
+      label: labels.available,
       disabled: true,
       hint: 'Kan allerede brukes i en ny runde.',
     }
   }
 
   return {
-    label: entityType === 'participant' ? 'Gjenopprett deltaker' : 'Gjenopprett presentasjon',
+    label: labels.restore,
     disabled: false,
     hint: entity.isUsed ? 'Var markert som brukt.' : 'Var deaktivert og blir gjort tilgjengelig igjen.',
+  }
+}
+
+function getPresentationRestoreState(
+  entity: Presentation | undefined,
+): RestoreState {
+  if (entity === undefined) {
+    return {
+      label: 'Presentasjonen er slettet',
+      disabled: true,
+      hint: 'Elementet finnes ikke lenger i oppsettet.',
+    }
+  }
+
+  if (entity.isActive && !entity.isUsed) {
+    return {
+      label: 'Presentasjonen er allerede tilgjengelig',
+      disabled: true,
+      hint: 'Kan allerede brukes i en ny runde.',
+    }
+  }
+
+  return {
+    label: 'Gjenopprett presentasjon',
+    disabled: false,
+    hint: entity.isUsed ? 'Var markert som brukt.' : 'Var deaktivert og blir gjort tilgjengelig igjen.',
+  }
+}
+
+function getParticipantLabels(role: ParticipantRole) {
+  if (role === 'primary') {
+    return {
+      restore: 'Gjenopprett hoveddeltaker',
+      available: 'Hoveddeltakeren er allerede tilgjengelig',
+      deleted: 'Hoveddeltakeren er slettet',
+    }
+  }
+
+  if (role === 'teammate') {
+    return {
+      restore: 'Gjenopprett lagkamerat',
+      available: 'Lagkameraten er allerede tilgjengelig',
+      deleted: 'Lagkameraten er slettet',
+    }
+  }
+
+  return {
+    restore: 'Gjenopprett deltaker',
+    available: 'Deltakeren er allerede tilgjengelig',
+    deleted: 'Deltakeren er slettet',
   }
 }
 

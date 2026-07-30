@@ -11,6 +11,15 @@ export function getAvailableParticipants(participants: readonly Participant[]): 
   return participants.filter((participant) => participant.isActive && !participant.isUsed)
 }
 
+export function getAvailableTeammates(
+  participants: readonly Participant[],
+  primaryParticipantId: string | null,
+): Participant[] {
+  return getAvailableParticipants(participants).filter(
+    (participant) => participant.id !== primaryParticipantId,
+  )
+}
+
 export function getAvailablePresentations(
   presentations: readonly Presentation[],
 ): Presentation[] {
@@ -28,6 +37,20 @@ export function selectAvailableParticipant(
   }
 
   return success(selectSecureRandomItem(availableParticipants, randomSource).item)
+}
+
+export function selectAvailableTeammate(
+  participants: readonly Participant[],
+  primaryParticipantId: string | null,
+  randomSource?: RandomSource,
+): ValidationResult<Participant> {
+  const availableTeammates = getAvailableTeammates(participants, primaryParticipantId)
+
+  if (availableTeammates.length === 0) {
+    return failure('Det finnes ingen tilgjengelige lagkamerater igjen.')
+  }
+
+  return success(selectSecureRandomItem(availableTeammates, randomSource).item)
 }
 
 export function selectAvailablePresentation(
@@ -52,8 +75,10 @@ export function createParticipantRoundSelection(
   return {
     id: roundId,
     step: 'participant',
-    participantId: participant.id,
-    participantName: participant.name,
+    primaryParticipantId: participant.id,
+    primaryParticipantName: participant.name,
+    teammateParticipantId: null,
+    teammateParticipantName: null,
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
@@ -62,8 +87,33 @@ export function createParticipantRoundSelection(
   }
 }
 
+export function moveRoundToTeammateSelection(currentRound: DraftRound | null): DraftRound | null {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null
+  ) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: 'teammate',
+    teammateParticipantId: null,
+    teammateParticipantName: null,
+    presentationId: null,
+    presentationTitle: null,
+    presentationUrl: null,
+    historyEntryId: null,
+  }
+}
+
 export function moveRoundToPresentation(currentRound: DraftRound | null): DraftRound | null {
-  if (currentRound === null || currentRound.participantId === null || currentRound.participantName === null) {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null
+  ) {
     return null
   }
 
@@ -81,7 +131,11 @@ export function createPresentationRoundSelection(
   currentRound: DraftRound | null,
   presentation: Presentation,
 ): DraftRound | null {
-  if (currentRound === null || currentRound.participantId === null || currentRound.participantName === null) {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null
+  ) {
     return null
   }
 
@@ -98,8 +152,8 @@ export function createPresentationRoundSelection(
 export function moveRoundToConfirm(currentRound: DraftRound | null): DraftRound | null {
   if (
     currentRound === null ||
-    currentRound.participantId === null ||
-    currentRound.participantName === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null ||
     currentRound.presentationId === null ||
     currentRound.presentationTitle === null ||
     currentRound.presentationUrl === null
@@ -114,14 +168,66 @@ export function moveRoundToConfirm(currentRound: DraftRound | null): DraftRound 
   }
 }
 
+export function createTeammateRoundSelection(
+  currentRound: DraftRound | null,
+  teammate: Participant,
+): DraftRound | null {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null ||
+    teammate.id === currentRound.primaryParticipantId
+  ) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: 'teammate',
+    teammateParticipantId: teammate.id,
+    teammateParticipantName: teammate.name,
+    presentationId: null,
+    presentationTitle: null,
+    presentationUrl: null,
+    historyEntryId: null,
+  }
+}
+
 export function moveRoundBackToParticipant(currentRound: DraftRound | null): DraftRound | null {
-  if (currentRound === null || currentRound.participantId === null || currentRound.participantName === null) {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null
+  ) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: currentRound.teammateParticipantId === null ? 'participant' : 'teammate',
+    teammateParticipantId: currentRound.teammateParticipantId,
+    teammateParticipantName: currentRound.teammateParticipantName,
+    presentationId: null,
+    presentationTitle: null,
+    presentationUrl: null,
+    historyEntryId: null,
+  }
+}
+
+export function removeTeammateFromRound(currentRound: DraftRound | null): DraftRound | null {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null
+  ) {
     return null
   }
 
   return {
     ...currentRound,
     step: 'participant',
+    teammateParticipantId: null,
+    teammateParticipantName: null,
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
@@ -130,7 +236,11 @@ export function moveRoundBackToParticipant(currentRound: DraftRound | null): Dra
 }
 
 export function moveRoundBackToPresentation(currentRound: DraftRound | null): DraftRound | null {
-  if (currentRound === null || currentRound.participantId === null || currentRound.participantName === null) {
+  if (
+    currentRound === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null
+  ) {
     return null
   }
 
@@ -149,8 +259,8 @@ export function createHistoryEntryFromRound(
 ): ValidationResult<RoundHistoryEntry> {
   if (
     currentRound === null ||
-    currentRound.participantId === null ||
-    currentRound.participantName === null ||
+    currentRound.primaryParticipantId === null ||
+    currentRound.primaryParticipantName === null ||
     currentRound.presentationId === null ||
     currentRound.presentationTitle === null ||
     currentRound.presentationUrl === null
@@ -161,8 +271,10 @@ export function createHistoryEntryFromRound(
   return success({
     id: historyEntryId,
     roundNumber: historyCount + 1,
-    participantId: currentRound.participantId,
-    participantName: currentRound.participantName,
+    primaryParticipantId: currentRound.primaryParticipantId,
+    primaryParticipantName: currentRound.primaryParticipantName,
+    teammateParticipantId: currentRound.teammateParticipantId,
+    teammateParticipantName: currentRound.teammateParticipantName,
     presentationId: currentRound.presentationId,
     presentationTitle: currentRound.presentationTitle,
     presentationUrl: currentRound.presentationUrl,
@@ -181,8 +293,10 @@ export function createCompletedRound(
   return {
     ...currentRound,
     step: 'complete',
-    participantId: historyEntry.participantId,
-    participantName: historyEntry.participantName,
+    primaryParticipantId: historyEntry.primaryParticipantId,
+    primaryParticipantName: historyEntry.primaryParticipantName,
+    teammateParticipantId: historyEntry.teammateParticipantId,
+    teammateParticipantName: historyEntry.teammateParticipantName,
     presentationId: historyEntry.presentationId,
     presentationTitle: historyEntry.presentationTitle,
     presentationUrl: historyEntry.presentationUrl,
@@ -213,28 +327,32 @@ export function reconcileCurrentRound(
 
     return {
       ...currentRound,
-      participantId: matchingHistoryEntry.participantId,
-      participantName: matchingHistoryEntry.participantName,
+      primaryParticipantId: matchingHistoryEntry.primaryParticipantId,
+      primaryParticipantName: matchingHistoryEntry.primaryParticipantName,
+      teammateParticipantId: matchingHistoryEntry.teammateParticipantId,
+      teammateParticipantName: matchingHistoryEntry.teammateParticipantName,
       presentationId: matchingHistoryEntry.presentationId,
       presentationTitle: matchingHistoryEntry.presentationTitle,
       presentationUrl: matchingHistoryEntry.presentationUrl,
     }
   }
 
-  if (currentRound.participantId === null) {
+  if (currentRound.primaryParticipantId === null) {
     return null
   }
 
-  const participant = participants.find((candidate) => candidate.id === currentRound.participantId)
+  const primaryParticipant = participants.find(
+    (candidate) => candidate.id === currentRound.primaryParticipantId,
+  )
 
-  if (participant === undefined || !participant.isActive || participant.isUsed) {
+  if (primaryParticipant === undefined || !primaryParticipant.isActive || primaryParticipant.isUsed) {
     return null
   }
 
   const baseRound: DraftRound = {
     ...currentRound,
-    participantId: participant.id,
-    participantName: participant.name,
+    primaryParticipantId: primaryParticipant.id,
+    primaryParticipantName: primaryParticipant.name,
     historyEntryId: null,
   }
 
@@ -242,16 +360,94 @@ export function reconcileCurrentRound(
     return {
       ...baseRound,
       step: 'participant',
+      teammateParticipantId: null,
+      teammateParticipantName: null,
       presentationId: null,
       presentationTitle: null,
       presentationUrl: null,
     }
   }
 
+  if (currentRound.step === 'teammate') {
+    if (currentRound.teammateParticipantId === null) {
+      return {
+        ...baseRound,
+        step: 'teammate',
+        teammateParticipantId: null,
+        teammateParticipantName: null,
+        presentationId: null,
+        presentationTitle: null,
+        presentationUrl: null,
+      }
+    }
+
+    const teammateParticipant = participants.find(
+      (candidate) => candidate.id === currentRound.teammateParticipantId,
+    )
+
+    if (
+      teammateParticipant === undefined ||
+      !teammateParticipant.isActive ||
+      teammateParticipant.isUsed ||
+      teammateParticipant.id === primaryParticipant.id
+    ) {
+      return {
+        ...baseRound,
+        step: 'participant',
+        teammateParticipantId: null,
+        teammateParticipantName: null,
+        presentationId: null,
+        presentationTitle: null,
+        presentationUrl: null,
+      }
+    }
+
+    return {
+      ...baseRound,
+      step: 'teammate',
+      teammateParticipantId: teammateParticipant.id,
+      teammateParticipantName: teammateParticipant.name,
+      presentationId: null,
+      presentationTitle: null,
+      presentationUrl: null,
+    }
+  }
+
+  let teammateParticipantId: string | null = null
+  let teammateParticipantName: string | null = null
+
+  if (currentRound.teammateParticipantId !== null) {
+    const teammateParticipant = participants.find(
+      (candidate) => candidate.id === currentRound.teammateParticipantId,
+    )
+
+    if (
+      teammateParticipant === undefined ||
+      !teammateParticipant.isActive ||
+      teammateParticipant.isUsed ||
+      teammateParticipant.id === primaryParticipant.id
+    ) {
+      return {
+        ...baseRound,
+        step: 'participant',
+        teammateParticipantId: null,
+        teammateParticipantName: null,
+        presentationId: null,
+        presentationTitle: null,
+        presentationUrl: null,
+      }
+    }
+
+    teammateParticipantId = teammateParticipant.id
+    teammateParticipantName = teammateParticipant.name
+  }
+
   if (currentRound.presentationId === null) {
     return {
       ...baseRound,
       step: 'presentation',
+      teammateParticipantId,
+      teammateParticipantName,
       presentationId: null,
       presentationTitle: null,
       presentationUrl: null,
@@ -275,6 +471,8 @@ export function reconcileCurrentRound(
   return {
     ...baseRound,
     step: currentRound.step === 'confirm' ? 'confirm' : 'presentation',
+    teammateParticipantId,
+    teammateParticipantName,
     presentationId: presentation.id,
     presentationTitle: presentation.title,
     presentationUrl: presentation.url,
