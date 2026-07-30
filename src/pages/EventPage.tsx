@@ -351,31 +351,32 @@ function EventPage({
       <div className="event-page__toolbar">
         <button
           type="button"
-          className="text-button event-page__toolbar-link"
+          className="event-page__icon-button"
           onClick={() => dispatch({ type: 'navigate', view: 'setup' })}
+          aria-label="Til oppsett"
         >
-          Til oppsett
+          <HomeIcon />
         </button>
-        <button type="button" className="ghost-button event-page__fullscreen-button" onClick={() => void fullscreen.toggleFullscreen()}>
+        <button
+          type="button"
+          className="ghost-button event-page__fullscreen-button"
+          onClick={() => void fullscreen.toggleFullscreen()}
+        >
           {fullscreen.isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
         </button>
       </div>
 
       <div className="event-page__hero">
-        <div>
-          <p className="section-label">Eventmodus</p>
-          <h2 className="event-page__heading">{getHeading(round)}</h2>
-          <p className="event-page__subtle">
-            {formatCount(stats.participants.available, 'deltaker', 'deltakere')} tilgjengelige ·{' '}
-            {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige
-          </p>
+        <h2 className="event-page__heading">{getHeading(round)}</h2>
+        <p className="event-page__subtle">
+          {formatCount(stats.participants.available, 'deltaker', 'deltakere')} tilgjengelige ·{' '}
+          {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige
+        </p>
+        <div className="event-stepper" aria-label="Rundesteg">
+          <span className={getStepClass(round, 'participant')}>Deltaker</span>
+          <span className={getStepClass(round, 'presentation')}>Presentasjon</span>
+          <span className={getStepClass(round, 'confirm')}>Bekreft</span>
         </div>
-      </div>
-
-      <div className="event-stepper" aria-label="Rundesteg">
-        <span className={getStepClass(round, 'participant')}>Deltaker</span>
-        <span className={getStepClass(round, 'presentation')}>Presentasjon</span>
-        <span className={getStepClass(round, 'confirm')}>Bekreft</span>
       </div>
 
       {visibleErrors.length > 0 ? (
@@ -406,7 +407,7 @@ function EventPage({
           <p className="placeholder-copy event-stage__copy">
             Start med å trekke en deltaker blant dem som fortsatt er aktive og tilgjengelige.
           </p>
-          <div className="panel-footer panel-footer--compact">
+          <div className="event-actions event-actions--solo">
             <button
               type="button"
               className="primary-button"
@@ -434,26 +435,39 @@ function EventPage({
             onSpinEnd={handleParticipantSpinEnd}
           />
           <RoundResult label="Valgt deltaker" value={round.participantName ?? 'Ukjent deltaker'} />
-          <div className="button-row">
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={handleSpinParticipant}
-              disabled={!canSpinParticipant}
-            >
-              Spinn på nytt
-            </button>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={handleContinueToPresentation}
-              disabled={!canAdvance}
-            >
-              Fortsett
-            </button>
-            <button type="button" className="text-button" onClick={handleCancelRound} disabled={!canCancel}>
-              Avbryt
-            </button>
+          <div className="event-actions">
+            <div className="event-actions__grid">
+              <div className="event-actions__slot event-actions__slot--start">
+                <button
+                  type="button"
+                  className="text-button event-actions__text-button"
+                  onClick={handleCancelRound}
+                  disabled={!canCancel}
+                >
+                  Avbryt
+                </button>
+              </div>
+              <div className="event-actions__slot event-actions__slot--center">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={handleSpinParticipant}
+                  disabled={!canSpinParticipant}
+                >
+                  Spinn på nytt
+                </button>
+              </div>
+              <div className="event-actions__slot event-actions__slot--end">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={handleContinueToPresentation}
+                  disabled={!canAdvance}
+                >
+                  Fortsett
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -479,26 +493,39 @@ function EventPage({
               <p className="placeholder-copy event-stage__copy">
                 Nå trekkes en presentasjon blant dem som fortsatt er aktive og tilgjengelige.
               </p>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={handleSpinPresentation}
-                  disabled={!canSpinPresentation}
-                >
-                  Spinn hjulet
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={handleBackToParticipant}
-                  disabled={isSpinning}
-                >
-                  Tilbake
-                </button>
-                <button type="button" className="text-button" onClick={handleCancelRound} disabled={!canCancel}>
-                  Avbryt
-                </button>
+              <div className="event-actions">
+                <div className="event-actions__grid">
+                  <div className="event-actions__slot event-actions__slot--start">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={handleBackToParticipant}
+                      disabled={isSpinning}
+                    >
+                      Tilbake
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--center">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={handleSpinPresentation}
+                      disabled={!canSpinPresentation}
+                    >
+                      Spinn hjulet
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--end">
+                    <button
+                      type="button"
+                      className="text-button event-actions__text-button"
+                      onClick={handleCancelRound}
+                      disabled={!canCancel}
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                </div>
               </div>
             </>
           ) : (
@@ -508,35 +535,50 @@ function EventPage({
                 value={round.presentationTitle ?? 'Ukjent presentasjon'}
                 secondary={presentationHost}
               />
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={handleSpinPresentation}
-                  disabled={!canSpinPresentation}
-                >
-                  Spinn på nytt
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={handleBackToParticipant}
-                  disabled={isSpinning}
-                >
-                  Tilbake
-                </button>
-                {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={handleContinueToConfirm}
-                  disabled={!canAdvance}
-                >
-                  Fortsett
-                </button>
-                <button type="button" className="text-button" onClick={handleCancelRound} disabled={!canCancel}>
-                  Avbryt
-                </button>
+              <div className="event-actions event-actions--presentation">
+                <div className="event-actions__utility">
+                  <button
+                    type="button"
+                    className="ghost-button event-actions__utility-button"
+                    onClick={handleSpinPresentation}
+                    disabled={!canSpinPresentation}
+                  >
+                    Spinn på nytt
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button event-actions__text-button"
+                    onClick={handleCancelRound}
+                    disabled={!canCancel}
+                  >
+                    Avbryt
+                  </button>
+                </div>
+                <div className="event-actions__grid event-actions__grid--presentation">
+                  <div className="event-actions__slot event-actions__slot--start">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={handleBackToParticipant}
+                      disabled={isSpinning}
+                    >
+                      Tilbake
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--center">
+                    {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--end">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={handleContinueToConfirm}
+                      disabled={!canAdvance}
+                    >
+                      Fortsett
+                    </button>
+                  </div>
+                </div>
               </div>
             </>
           )}
@@ -553,17 +595,42 @@ function EventPage({
               secondary={presentationHost}
             />
           </div>
-          <div className="button-row event-stage__actions">
-            <button type="button" className="ghost-button" onClick={handleBackToPresentation} disabled={isSpinning}>
-              Tilbake
-            </button>
-            {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
-            <button type="button" className="primary-button" onClick={handleConfirmRound} disabled={!canConfirm}>
-              Bekreft runde
-            </button>
-            <button type="button" className="text-button" onClick={handleCancelRound} disabled={!canCancel}>
-              Avbryt
-            </button>
+          <div className="event-actions event-actions--presentation">
+            <div className="event-actions__utility">
+              <button
+                type="button"
+                className="text-button event-actions__text-button"
+                onClick={handleCancelRound}
+                disabled={!canCancel}
+              >
+                Avbryt
+              </button>
+            </div>
+            <div className="event-actions__grid event-actions__grid--presentation">
+              <div className="event-actions__slot event-actions__slot--start">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={handleBackToPresentation}
+                  disabled={isSpinning}
+                >
+                  Tilbake
+                </button>
+              </div>
+              <div className="event-actions__slot event-actions__slot--center">
+                {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
+              </div>
+              <div className="event-actions__slot event-actions__slot--end">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={handleConfirmRound}
+                  disabled={!canConfirm}
+                >
+                  Bekreft runde
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -581,11 +648,18 @@ function EventPage({
           <p className="placeholder-copy event-stage__copy">
             Runden er bekreftet og lagret. Både deltaker og presentasjon er nå markert som brukt.
           </p>
-          <div className="button-row">
-            {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
-            <button type="button" className="primary-button" onClick={handleStartNextRound}>
-              Start neste runde
-            </button>
+          <div className="event-actions">
+            <div className="event-actions__grid event-actions__grid--complete">
+              <div className="event-actions__slot event-actions__slot--start" aria-hidden="true" />
+              <div className="event-actions__slot event-actions__slot--center">
+                {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
+              </div>
+              <div className="event-actions__slot event-actions__slot--end">
+                <button type="button" className="primary-button" onClick={handleStartNextRound}>
+                  Start neste runde
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -653,12 +727,23 @@ function renderPresentationOpenAction(
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="primary-button primary-button--link"
+      className="primary-button primary-button--link event-open-button"
       onClick={(event) => onOpen(event, presentationUrl)}
       aria-disabled={!isValidUrl}
     >
       Åpne presentasjon ↗
     </a>
+  )
+}
+
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="event-page__icon">
+      <path
+        d="M4 10.75 12 4l8 6.75v8.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75V15h-4v4.25a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 4 19.25z"
+        fill="currentColor"
+      />
+    </svg>
   )
 }
 
