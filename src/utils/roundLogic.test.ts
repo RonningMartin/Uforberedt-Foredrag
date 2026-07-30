@@ -6,7 +6,9 @@ import {
   createPresentationRoundSelection,
   getAvailableParticipants,
   getAvailablePresentations,
+  moveRoundBackToPresentation,
   moveRoundBackToParticipant,
+  moveRoundToConfirm,
   moveRoundToPresentation,
   reconcileCurrentRound,
   selectAvailableParticipant,
@@ -81,14 +83,25 @@ describe('roundLogic', () => {
       '2026-07-29T09:00:00.000Z',
     )
     const presentationRound = moveRoundToPresentation(participantRound)
-    const confirmRound = createPresentationRoundSelection(presentationRound, presentation)
+    const selectedPresentationRound = createPresentationRoundSelection(presentationRound, presentation)
+    const confirmRound = moveRoundToConfirm(selectedPresentationRound)
+    const resetToPresentation = moveRoundBackToPresentation(confirmRound)
     const resetToParticipant = moveRoundBackToParticipant(confirmRound)
 
     expect(participant.isUsed).toBe(false)
     expect(presentation.isUsed).toBe(false)
+    expect(selectedPresentationRound).toMatchObject({
+      step: 'presentation',
+      participantId: 'participant-1',
+      presentationId: 'presentation-1',
+    })
     expect(confirmRound).toMatchObject({
       step: 'confirm',
       participantId: 'participant-1',
+      presentationId: 'presentation-1',
+    })
+    expect(resetToPresentation).toMatchObject({
+      step: 'presentation',
       presentationId: 'presentation-1',
     })
     expect(resetToParticipant).toMatchObject({

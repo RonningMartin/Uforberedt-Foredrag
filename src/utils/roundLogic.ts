@@ -87,10 +87,29 @@ export function createPresentationRoundSelection(
 
   return {
     ...currentRound,
-    step: 'confirm',
+    step: 'presentation',
     presentationId: presentation.id,
     presentationTitle: presentation.title,
     presentationUrl: presentation.url,
+    historyEntryId: null,
+  }
+}
+
+export function moveRoundToConfirm(currentRound: DraftRound | null): DraftRound | null {
+  if (
+    currentRound === null ||
+    currentRound.participantId === null ||
+    currentRound.participantName === null ||
+    currentRound.presentationId === null ||
+    currentRound.presentationTitle === null ||
+    currentRound.presentationUrl === null
+  ) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: 'confirm',
     historyEntryId: null,
   }
 }
@@ -106,6 +125,18 @@ export function moveRoundBackToParticipant(currentRound: DraftRound | null): Dra
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    historyEntryId: null,
+  }
+}
+
+export function moveRoundBackToPresentation(currentRound: DraftRound | null): DraftRound | null {
+  if (currentRound === null || currentRound.participantId === null || currentRound.participantName === null) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: 'presentation',
     historyEntryId: null,
   }
 }
@@ -207,10 +238,10 @@ export function reconcileCurrentRound(
     historyEntryId: null,
   }
 
-  if (currentRound.step === 'participant' || currentRound.step === 'presentation') {
+  if (currentRound.step === 'participant') {
     return {
       ...baseRound,
-      step: currentRound.step,
+      step: 'participant',
       presentationId: null,
       presentationTitle: null,
       presentationUrl: null,
@@ -243,7 +274,7 @@ export function reconcileCurrentRound(
 
   return {
     ...baseRound,
-    step: 'confirm',
+    step: currentRound.step === 'confirm' ? 'confirm' : 'presentation',
     presentationId: presentation.id,
     presentationTitle: presentation.title,
     presentationUrl: presentation.url,
