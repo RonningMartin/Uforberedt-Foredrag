@@ -1,4 +1,5 @@
 import type { AppAction, AppState } from '../types/app'
+import { createInitialAppState } from './appState'
 import { createCompletedRound, reconcileCurrentRound } from '../utils/roundLogic'
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -45,6 +46,53 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         currentRound: createCompletedRound(state.currentRound, action.historyEntry),
       }
     }
+
+    case 'undoLastRound': {
+      const lastHistoryEntry = state.history.at(-1)
+
+      if (lastHistoryEntry === undefined) {
+        return state
+      }
+
+      return withReconciledRound({
+        ...state,
+        participants: state.participants.map((participant) =>
+          participant.id === lastHistoryEntry.participantId
+            ? {
+                ...participant,
+                isUsed: false,
+              }
+            : participant,
+        ),
+        presentations: state.presentations.map((presentation) =>
+          presentation.id === lastHistoryEntry.presentationId
+            ? {
+                ...presentation,
+                isUsed: false,
+              }
+            : presentation,
+        ),
+        history: state.history.slice(0, -1),
+      })
+    }
+
+    case 'resetEventProgress':
+      return withReconciledRound({
+        ...state,
+        participants: state.participants.map((participant) => ({
+          ...participant,
+          isUsed: false,
+        })),
+        presentations: state.presentations.map((presentation) => ({
+          ...presentation,
+          isUsed: false,
+        })),
+        history: [],
+        currentRound: null,
+      })
+
+    case 'clearAllData':
+      return createInitialAppState()
 
     case 'addParticipant':
       return {

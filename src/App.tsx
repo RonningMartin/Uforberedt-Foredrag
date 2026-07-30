@@ -50,7 +50,7 @@ function App() {
       <main className={isEventView ? 'page page--event' : 'page'}>
         {state.activeView === 'setup' ? <SetupPage state={state} dispatch={dispatch} /> : null}
         {state.activeView === 'event' ? <EventPage state={state} dispatch={dispatch} /> : null}
-        {state.activeView === 'history' ? <HistoryPage historyCount={state.history.length} /> : null}
+        {state.activeView === 'history' ? <HistoryPage state={state} dispatch={dispatch} /> : null}
       </main>
     </div>
   )

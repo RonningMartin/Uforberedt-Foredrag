@@ -33,6 +33,15 @@ export type AppAction =
       historyEntry: RoundHistoryEntry
     }
   | {
+      type: 'undoLastRound'
+    }
+  | {
+      type: 'resetEventProgress'
+    }
+  | {
+      type: 'clearAllData'
+    }
+  | {
       type: 'addParticipant'
       participant: Participant
     }
