@@ -2,6 +2,7 @@ import type {
   AppSettings,
   DraftRound,
   EntityId,
+  Penalty,
   Participant,
   Presentation,
   RoundHistoryEntry,
@@ -14,6 +15,7 @@ export interface AppState {
   activeView: AppView
   participants: Participant[]
   presentations: Presentation[]
+  penalties: Penalty[]
   history: RoundHistoryEntry[]
   currentRound: DraftRound | null
   settings: AppSettings
@@ -93,6 +95,37 @@ export type AppAction =
   | {
       type: 'restorePresentation'
       presentationId: EntityId
+    }
+  | {
+      type: 'addPenalty'
+      penalty: Penalty
+    }
+  | {
+      type: 'addPenalties'
+      penalties: Penalty[]
+    }
+  | {
+      type: 'updatePenalty'
+      penaltyId: EntityId
+      title: string
+      description: string | null
+    }
+  | {
+      type: 'deletePenalty'
+      penaltyId: EntityId
+    }
+  | {
+      type: 'setPenaltyActive'
+      penaltyId: EntityId
+      isActive: boolean
+    }
+  | {
+      type: 'restorePenalty'
+      penaltyId: EntityId
+    }
+  | {
+      type: 'confirmRoundPenalty'
+      historyEntry: RoundHistoryEntry
     }
   | {
       type: 'replaceState'

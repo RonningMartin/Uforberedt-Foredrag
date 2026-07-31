@@ -14,20 +14,26 @@ import {
   type OpenWindowFn,
 } from '../utils/presentationLink'
 import {
+  cancelPenaltySelection,
   createHistoryEntryFromRound,
+  createHistoryEntryWithPenalty,
   createParticipantRoundSelection,
+  createPenaltyRoundSelection,
   createPresentationRoundSelection,
   createTeammateRoundSelection,
   getAvailableParticipants,
+  getAvailablePenalties,
   getAvailablePresentations,
   getAvailableTeammates,
   moveRoundBackToParticipant,
   moveRoundBackToPresentation,
   moveRoundToConfirm,
+  moveRoundToPenaltySelection,
   moveRoundToPresentation,
   moveRoundToTeammateSelection,
   removeTeammateFromRound,
   selectAvailableParticipant,
+  selectAvailablePenalty,
   selectAvailablePresentation,
   selectAvailableTeammate,
 } from '../utils/roundLogic'
@@ -41,10 +47,11 @@ interface EventPageProps {
   dispatch: Dispatch<AppAction>
   participantRandomSource?: RandomSource
   presentationRandomSource?: RandomSource
+  penaltyRandomSource?: RandomSource
   openWindow?: OpenWindowFn
 }
 
-type SpinPhase = 'primary' | 'teammate' | 'presentation'
+type SpinPhase = 'primary' | 'teammate' | 'presentation' | 'penalty'
 
 interface PendingSpinState {
   phase: SpinPhase
@@ -58,19 +65,23 @@ function EventPage({
   dispatch,
   participantRandomSource,
   presentationRandomSource,
+  penaltyRandomSource,
   openWindow,
 }: EventPageProps) {
   const [errors, setErrors] = useState<string[]>([])
   const [participantRotation, setParticipantRotation] = useState(0)
   const [presentationRotation, setPresentationRotation] = useState(0)
+  const [penaltyRotation, setPenaltyRotation] = useState(0)
   const [pendingSpin, setPendingSpin] = useState<PendingSpinState | null>(null)
   const fullscreen = useFullscreen<HTMLElement>()
   const stats = getAppStats(state)
   const round = state.currentRound
   const availableParticipants = getAvailableParticipants(state.participants)
   const availablePresentations = getAvailablePresentations(state.presentations)
+  const availablePenalties = getAvailablePenalties(state.penalties)
   const hasPrimaryParticipant = hasPrimarySelection(round)
   const hasTeammateParticipant = hasTeammateSelection(round)
+  const hasPenalty = hasPenaltySelection(round)
   const availableTeammates = hasPrimaryParticipant
     ? getAvailableTeammates(state.participants, round?.primaryParticipantId ?? null)
     : []
@@ -83,6 +94,10 @@ function EventPage({
   const currentPresentationWinnerIndex = findWinnerIndex(
     availablePresentations,
     pendingSpin?.phase === 'presentation' ? pendingSpin.winnerId : round?.presentationId ?? null,
+  )
+  const currentPenaltyWinnerIndex = findWinnerIndex(
+    availablePenalties,
+    pendingSpin?.phase === 'penalty' ? pendingSpin.winnerId : round?.penaltyId ?? null,
   )
   const isSpinning = pendingSpin !== null
   const isPresentationSelected = hasPresentationSelection(round)
@@ -104,19 +119,34 @@ function EventPage({
     !isSpinning && round?.step === 'teammate' && availableTeammates.length > 0
   const canSpinPresentation =
     !isSpinning && availablePresentations.length > 0 && round?.step === 'presentation'
+  const canSpinPenalty =
+    !isSpinning &&
+    round?.step === 'penalty' &&
+    availablePenalties.length > 0
   const canAddTeammate =
-    !isSpinning && round?.step === 'participant' && hasPrimaryParticipant && availableTeammates.length > 0
+    !isSpinning &&
+    round?.step === 'participant' &&
+    hasPrimaryParticipant &&
+    availableTeammates.length > 0
   const canContinueSolo = !isSpinning && round?.step === 'participant' && hasPrimaryParticipant
   const canContinueWithTeammate =
     !isSpinning && round?.step === 'teammate' && hasTeammateParticipant
-  const canConfirm = !isSpinning && round?.step === 'confirm'
+  const canConfirmRound = !isSpinning && round?.step === 'confirm'
+  const canConfirmPenalty = !isSpinning && round?.step === 'penalty' && hasPenalty
+  const canMoveToPenalty =
+    !isSpinning &&
+    round?.step === 'complete' &&
+    !hasPenalty &&
+    availablePenalties.length > 0
   const canCancel = !isSpinning && round !== null && round.step !== 'complete'
-  const canSpinCurrentWheel = canSpinPrimary || canSpinTeammate || canSpinPresentation
+  const canSpinCurrentWheel =
+    canSpinPrimary || canSpinTeammate || canSpinPresentation || canSpinPenalty
   const canAdvance =
     !isSpinning &&
     ((round?.step === 'participant' && hasPrimaryParticipant) ||
       (round?.step === 'teammate' && hasTeammateParticipant) ||
       (round?.step === 'presentation' && isPresentationSelected))
+  const canConfirm = canConfirmRound || canConfirmPenalty
 
   useEventKeyboardShortcuts({
     enabled: true,
@@ -127,7 +157,7 @@ function EventPage({
     canCancel,
     onSpin: handleSpinCurrentWheel,
     onAdvance: handleAdvance,
-    onConfirm: handleConfirmRound,
+    onConfirm: handleConfirmAction,
     onCancel: handleCancelRound,
     onExitFullscreen: () => {
       void fullscreen.exitFullscreen()
@@ -197,22 +227,6 @@ function EventPage({
     fullscreen.clearError()
   }
 
-  function handleContinueToPresentation() {
-    dispatch({
-      type: 'setCurrentRound',
-      currentRound: moveRoundToPresentation(round),
-    })
-    setErrors([])
-  }
-
-  function handleMoveToTeammateSelection() {
-    dispatch({
-      type: 'setCurrentRound',
-      currentRound: moveRoundToTeammateSelection(round),
-    })
-    setErrors([])
-  }
-
   function handleSpinPresentation() {
     if (isSpinning) {
       return
@@ -241,6 +255,58 @@ function EventPage({
     )
     setErrors([])
     fullscreen.clearError()
+  }
+
+  function handleSpinPenalty() {
+    if (isSpinning || round?.step !== 'penalty') {
+      return
+    }
+
+    const result = selectAvailablePenalty(state.penalties, penaltyRandomSource)
+
+    if (!result.success) {
+      setErrors(result.errors)
+      return
+    }
+
+    const winnerIndex = availablePenalties.findIndex((penalty) => penalty.id === result.data.id)
+    setPendingSpin({
+      phase: 'penalty',
+      winnerId: result.data.id,
+    })
+    setPenaltyRotation((currentRotation) =>
+      calculateWheelRotation({
+        itemCount: availablePenalties.length,
+        winnerIndex,
+        currentRotation,
+      }),
+    )
+    setErrors([])
+    fullscreen.clearError()
+  }
+
+  function handleContinueToPresentation() {
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: moveRoundToPresentation(round),
+    })
+    setErrors([])
+  }
+
+  function handleMoveToTeammateSelection() {
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: moveRoundToTeammateSelection(round),
+    })
+    setErrors([])
+  }
+
+  function handleMoveToPenaltySelection() {
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: moveRoundToPenaltySelection(round),
+    })
+    setErrors([])
   }
 
   function handlePrimarySpinEnd() {
@@ -328,6 +394,32 @@ function EventPage({
     })
   }
 
+  function handlePenaltySpinEnd() {
+    if (pendingSpin === null || pendingSpin.phase !== 'penalty') {
+      return
+    }
+
+    const selectedPenalty = getAvailablePenalties(state.penalties).find(
+      (penalty) => penalty.id === pendingSpin.winnerId,
+    )
+
+    setPendingSpin(null)
+
+    if (selectedPenalty === undefined) {
+      setErrors(['Den valgte straffen er ikke lenger tilgjengelig. Spinn på nytt.'])
+      dispatch({
+        type: 'setCurrentRound',
+        currentRound: moveRoundToPenaltySelection(round),
+      })
+      return
+    }
+
+    dispatch({
+      type: 'setCurrentRound',
+      currentRound: createPenaltyRoundSelection(round, selectedPenalty),
+    })
+  }
+
   function handleBackToParticipantPhase() {
     dispatch({
       type: 'setCurrentRound',
@@ -366,6 +458,16 @@ function EventPage({
     }
 
     setPendingSpin(null)
+
+    if (round?.step === 'penalty') {
+      dispatch({
+        type: 'setCurrentRound',
+        currentRound: cancelPenaltySelection(round),
+      })
+      setErrors([])
+      return
+    }
+
     dispatch({
       type: 'setCurrentRound',
       currentRound: null,
@@ -397,6 +499,54 @@ function EventPage({
     setErrors([])
   }
 
+  function handleConfirmPenalty() {
+    if (isSpinning || round?.step !== 'penalty' || round.historyEntryId === null || !hasPenalty) {
+      return
+    }
+
+    const selectedPenalty = getAvailablePenalties(state.penalties).find(
+      (penalty) => penalty.id === round.penaltyId,
+    )
+
+    if (selectedPenalty === undefined) {
+      setErrors(['Den valgte straffen er ikke lenger tilgjengelig. Spinn på nytt.'])
+      dispatch({
+        type: 'setCurrentRound',
+        currentRound: moveRoundToPenaltySelection(round),
+      })
+      return
+    }
+
+    const historyEntry = state.history.find((entry) => entry.id === round.historyEntryId)
+
+    if (historyEntry === undefined) {
+      setErrors(['Den bekreftede runden ble ikke funnet i historikken.'])
+      return
+    }
+
+    const updatedHistoryEntry = createHistoryEntryWithPenalty(historyEntry, selectedPenalty)
+
+    if (!updatedHistoryEntry.success) {
+      setErrors(updatedHistoryEntry.errors)
+      return
+    }
+
+    dispatch({
+      type: 'confirmRoundPenalty',
+      historyEntry: updatedHistoryEntry.data,
+    })
+    setErrors([])
+  }
+
+  function handleConfirmAction() {
+    if (round?.step === 'penalty') {
+      handleConfirmPenalty()
+      return
+    }
+
+    handleConfirmRound()
+  }
+
   function handleStartNextRound() {
     setPendingSpin(null)
     dispatch({
@@ -419,6 +569,11 @@ function EventPage({
 
     if (round.step === 'presentation') {
       handleSpinPresentation()
+      return
+    }
+
+    if (round.step === 'penalty') {
+      handleSpinPenalty()
     }
   }
 
@@ -478,7 +633,8 @@ function EventPage({
         <h2 className="event-page__heading">{getHeading(round)}</h2>
         <p className="event-page__subtle">
           {formatCount(stats.participants.available, 'deltaker', 'deltakere')} tilgjengelige ·{' '}
-          {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige
+          {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige ·{' '}
+          {formatCount(stats.penalties.available, 'straff', 'straffer')} tilgjengelige
         </p>
         <div className="event-stepper" aria-label="Rundesteg">
           <span className={getStepClass(round, 'participant')}>Deltaker</span>
@@ -860,13 +1016,114 @@ function EventPage({
                   type="button"
                   className="primary-button"
                   onClick={handleConfirmRound}
-                  disabled={!canConfirm}
+                  disabled={!canConfirmRound}
                 >
                   Bekreft runde
                 </button>
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {round?.step === 'penalty' ? (
+        <div className="event-stage event-stage--wheel">
+          <div className="event-results-grid">
+            <RoundResult label={participantLabel} value={teamName} />
+            <RoundResult
+              label="Presentasjon"
+              value={round.presentationTitle ?? 'Ukjent presentasjon'}
+              secondary={presentationHost}
+            />
+          </div>
+          <Wheel
+            ariaLabel="Hjul med tilgjengelige straffer"
+            items={availablePenalties.map((penalty) => ({
+              id: penalty.id,
+              label: penalty.title,
+            }))}
+            rotation={penaltyRotation}
+            spinning={pendingSpin?.phase === 'penalty'}
+            winnerIndex={currentPenaltyWinnerIndex}
+            emptyLabel="Ingen straffer igjen"
+            onSpinEnd={handlePenaltySpinEnd}
+          />
+
+          {!hasPenalty ? (
+            <>
+              <p className="placeholder-copy event-stage__copy">
+                {availablePenalties.length === 0
+                  ? 'Ingen straffer er tilgjengelige akkurat nå. Du kan gå tilbake til den fullførte runden.'
+                  : `Trekk en straff for ${teamName}.`}
+              </p>
+              <div className="event-actions">
+                <div className="event-actions__grid">
+                  <div className="event-actions__slot event-actions__slot--start">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={handleCancelRound}
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--center">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={handleSpinPenalty}
+                      disabled={!canSpinPenalty}
+                    >
+                      Spinn hjulet
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--end" aria-hidden="true" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <RoundResult
+                label="Valgt straff"
+                value={round.penaltyTitle ?? 'Ukjent straff'}
+                secondary={round.penaltyDescription}
+              />
+              <div className="event-actions event-actions--presentation">
+                <div className="event-actions__utility">
+                  <button
+                    type="button"
+                    className="ghost-button event-actions__utility-button"
+                    onClick={handleSpinPenalty}
+                    disabled={!canSpinPenalty}
+                  >
+                    Spinn på nytt
+                  </button>
+                </div>
+                <div className="event-actions__grid event-actions__grid--presentation">
+                  <div className="event-actions__slot event-actions__slot--start">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={handleCancelRound}
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                  <div className="event-actions__slot event-actions__slot--center" aria-hidden="true" />
+                  <div className="event-actions__slot event-actions__slot--end">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={handleConfirmPenalty}
+                      disabled={!canConfirmPenalty}
+                    >
+                      Bekreft straff
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -880,12 +1137,36 @@ function EventPage({
               secondary={presentationHost}
             />
           </div>
-          <p className="placeholder-copy event-stage__copy">
-            Runden er bekreftet og lagret. Alle deltakere i laget og presentasjonen er nå markert som brukt.
-          </p>
+          {hasPenalty ? (
+            <RoundResult
+              label="Straff"
+              value={round.penaltyTitle ?? 'Ukjent straff'}
+              secondary={round.penaltyDescription}
+            />
+          ) : (
+            <p className="placeholder-copy event-stage__copy">
+              Runden er bekreftet og lagret. Alle deltakere i laget og presentasjonen er nå markert som brukt.
+            </p>
+          )}
+          {!hasPenalty && availablePenalties.length === 0 ? (
+            <p className="event-actions__hint">Ingen straffer er tilgjengelige.</p>
+          ) : null}
           <div className="event-actions">
             <div className="event-actions__grid event-actions__grid--complete">
-              <div className="event-actions__slot event-actions__slot--start" aria-hidden="true" />
+              <div className="event-actions__slot event-actions__slot--start">
+                {hasPenalty ? (
+                  <span aria-hidden="true" />
+                ) : (
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={handleMoveToPenaltySelection}
+                    disabled={!canMoveToPenalty}
+                  >
+                    Spinn straffehjul
+                  </button>
+                )}
+              </div>
               <div className="event-actions__slot event-actions__slot--center">
                 {renderPresentationOpenAction(round.presentationUrl, handleOpenPresentation)}
               </div>
@@ -913,6 +1194,10 @@ function getHeading(round: AppState['currentRound']) {
 
   if (round?.step === 'confirm') {
     return 'Bekreft runden'
+  }
+
+  if (round?.step === 'penalty') {
+    return 'Straffehjul'
   }
 
   if (round?.step === 'complete') {
@@ -983,6 +1268,10 @@ function hasPresentationSelection(round: AppState['currentRound']) {
     round?.presentationTitle !== null &&
     round?.presentationUrl !== null
   )
+}
+
+function hasPenaltySelection(round: AppState['currentRound']) {
+  return round?.penaltyId !== null && round?.penaltyTitle !== null
 }
 
 function renderPresentationOpenAction(

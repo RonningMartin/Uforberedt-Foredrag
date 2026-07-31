@@ -182,10 +182,11 @@ describe('EventPage', () => {
     expect(view.getLatestState().currentRound).toBeNull()
     expect(view.getLatestState().participants.every((participant) => participant.isUsed === false)).toBe(true)
     expect(view.getLatestState().presentations.every((presentation) => presentation.isUsed === false)).toBe(true)
+    expect(view.getLatestState().penalties.every((penalty) => penalty.isUsed === false)).toBe(true)
     expect(view.getLatestState().history).toHaveLength(0)
   })
 
-  it('keeps the existing keyboard flow working for a solorunde', () => {
+  it('keeps the existing keyboard flow working for a solorunde without requiring a straff', () => {
     const view = renderEventPage({
       participantRandomValues: [0],
       presentationRandomValues: [1],
@@ -218,6 +219,116 @@ describe('EventPage', () => {
     expect(view.getLatestState().currentRound?.step).toBe('complete')
     expect(view.getLatestState().history).toHaveLength(1)
     expect(view.getLatestState().history[0]?.teammateParticipantId).toBeNull()
+    expect(view.getLatestState().history[0]?.penaltyId).toBeNull()
+  })
+
+  it('can spin a penalty, respin it and confirm it for the completed round', () => {
+    const view = renderEventPage({
+      participantRandomValues: [0],
+      presentationRandomValues: [0],
+      penaltyRandomValues: [1, 0],
+    })
+
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+    view.clickControl('Fortsett alene')
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+    view.clickControl('Fortsett')
+    view.clickControl('Bekreft runde')
+
+    expect(view.getLatestState().currentRound?.step).toBe('complete')
+    expect(view.getLatestState().history[0]?.penaltyId).toBeNull()
+
+    view.clickControl('Spinn straffehjul')
+    expect(view.getLatestState().currentRound?.step).toBe('penalty')
+    view.clickControl('Spinn hjulet')
+    view.finishSpin()
+
+    expect(view.getLatestState().currentRound).toMatchObject({
+      step: 'penalty',
+      penaltyTitle: 'Ta 10 armhevinger',
+    })
+
+    view.clickControl('Spinn på nytt')
+    view.finishSpin()
+
+    expect(view.getLatestState().currentRound).toMatchObject({
+      step: 'penalty',
+      penaltyTitle: 'Syng en sang',
+    })
+
+    view.clickControl('Bekreft straff')
+
+    expect(view.getLatestState().currentRound).toMatchObject({
+      step: 'complete',
+      penaltyTitle: 'Syng en sang',
+    })
+    expect(view.getLatestState().history[0]).toMatchObject({
+      penaltyId: 'penalty-1',
+      penaltyTitle: 'Syng en sang',
+    })
+    expect(view.getLatestState().penalties[0]?.isUsed).toBe(true)
+    expect(view.getLatestState().penalties[1]?.isUsed).toBe(false)
+  })
+
+  it('can cancel the penalty step without using any penalty and handles missing or single penalties safely', () => {
+    const noPenaltyView = renderEventPage({
+      initialState: createBaseState({
+        penalties: [createPenalty('penalty-1', 'Syng en sang', { isActive: false })],
+      }),
+      participantRandomValues: [0],
+      presentationRandomValues: [0],
+    })
+
+    noPenaltyView.clickControl('Spinn hjulet')
+    noPenaltyView.finishSpin()
+    noPenaltyView.clickControl('Fortsett alene')
+    noPenaltyView.clickControl('Spinn hjulet')
+    noPenaltyView.finishSpin()
+    noPenaltyView.clickControl('Fortsett')
+    noPenaltyView.clickControl('Bekreft runde')
+
+    expect(noPenaltyView.getButton('Spinn straffehjul').disabled).toBe(true)
+    expect(noPenaltyView.container.textContent).toContain('Ingen straffer er tilgjengelige.')
+
+    const singlePenaltyView = renderEventPage({
+      initialState: createBaseState({
+        penalties: [
+          createPenalty('penalty-1', 'Syng en sang'),
+          createPenalty('penalty-2', 'Ta 10 armhevinger', { isActive: false }),
+        ],
+      }),
+      participantRandomValues: [0],
+      presentationRandomValues: [0],
+      penaltyRandomValues: [0],
+    })
+
+    singlePenaltyView.clickControl('Spinn hjulet')
+    singlePenaltyView.finishSpin()
+    singlePenaltyView.clickControl('Fortsett alene')
+    singlePenaltyView.clickControl('Spinn hjulet')
+    singlePenaltyView.finishSpin()
+    singlePenaltyView.clickControl('Fortsett')
+    singlePenaltyView.clickControl('Bekreft runde')
+    singlePenaltyView.clickControl('Spinn straffehjul')
+    singlePenaltyView.clickControl('Spinn hjulet')
+    singlePenaltyView.finishSpin()
+
+    expect(singlePenaltyView.getLatestState().currentRound).toMatchObject({
+      step: 'penalty',
+      penaltyTitle: 'Syng en sang',
+    })
+
+    singlePenaltyView.clickControl('Avbryt')
+
+    expect(singlePenaltyView.getLatestState().currentRound).toMatchObject({
+      step: 'complete',
+      penaltyId: null,
+      penaltyTitle: null,
+    })
+    expect(singlePenaltyView.getLatestState().penalties[0]?.isUsed).toBe(false)
+    expect(singlePenaltyView.getLatestState().history[0]?.penaltyId).toBeNull()
   })
 
   it('opens the selected presentation with the correct URL without confirming the round', () => {
@@ -233,6 +344,9 @@ describe('EventPage', () => {
         presentationId: 'presentation-1',
         presentationTitle: 'Romskip',
         presentationUrl: 'https://example.com/romskip',
+        penaltyId: null,
+        penaltyTitle: null,
+        penaltyDescription: null,
         historyEntryId: null,
         startedAt: '2026-07-30T10:00:00.000Z',
       },
@@ -258,6 +372,7 @@ function renderEventPage(options: {
   initialState?: AppState
   participantRandomValues?: number[]
   presentationRandomValues?: number[]
+  penaltyRandomValues?: number[]
   openWindow?: (url: string, target?: string, features?: string) => Window | null
 }): RenderResult {
   let latestState = options.initialState ?? createBaseState()
@@ -269,6 +384,17 @@ function renderEventPage(options: {
     options.presentationRandomValues === undefined
       ? undefined
       : new QueueRandomSource([...options.presentationRandomValues])
+  const penaltyRandomSource =
+    options.penaltyRandomValues === undefined
+      ? undefined
+      : new QueueRandomSource([...options.penaltyRandomValues])
+
+  if (activeRoot !== null) {
+    act(() => {
+      activeRoot?.unmount()
+    })
+  }
+
   const root = createRoot(host)
   activeRoot = root
 
@@ -285,6 +411,7 @@ function renderEventPage(options: {
         dispatch={dispatch}
         participantRandomSource={participantRandomSource}
         presentationRandomSource={presentationRandomSource}
+        penaltyRandomSource={penaltyRandomSource}
         openWindow={options.openWindow}
       />
     )
@@ -377,6 +504,10 @@ function createBaseState(overrides?: Partial<AppState>): AppState {
         isUsed: false,
       },
     ],
+    penalties: [
+      createPenalty('penalty-1', 'Syng en sang'),
+      createPenalty('penalty-2', 'Ta 10 armhevinger'),
+    ],
     ...overrides,
   }
 }
@@ -394,5 +525,25 @@ function createParticipant(
     name,
     isActive: overrides?.isActive ?? true,
     isUsed: overrides?.isUsed ?? false,
+  }
+}
+
+function createPenalty(
+  id: string,
+  title: string,
+  overrides?: Partial<{
+    description: string | null
+    isActive: boolean
+    isUsed: boolean
+    createdAt: string
+  }>,
+) {
+  return {
+    id,
+    title,
+    description: overrides?.description ?? null,
+    isActive: overrides?.isActive ?? true,
+    isUsed: overrides?.isUsed ?? false,
+    createdAt: overrides?.createdAt ?? '2026-07-30T09:00:00.000Z',
   }
 }

@@ -16,11 +16,13 @@ function HistoryPage({ state, dispatch }: HistoryPageProps) {
   const stats = getAppStats(state)
   const usedParticipants = state.participants.filter((participant) => participant.isUsed).length
   const usedPresentations = state.presentations.filter((presentation) => presentation.isUsed).length
+  const usedPenalties = state.penalties.filter((penalty) => penalty.isUsed).length
   const hasProgress =
     state.history.length > 0 ||
     state.currentRound !== null ||
     usedParticipants > 0 ||
-    usedPresentations > 0
+    usedPresentations > 0 ||
+    usedPenalties > 0
 
   return (
     <section className="panel panel--narrow">
@@ -56,13 +58,15 @@ function HistoryPage({ state, dispatch }: HistoryPageProps) {
 
       <p className="history-summary">
         {formatCount(usedParticipants, 'brukt deltaker', 'brukte deltakere')} ·{' '}
-        {formatCount(usedPresentations, 'brukt presentasjon', 'brukte presentasjoner')}
+        {formatCount(usedPresentations, 'brukt presentasjon', 'brukte presentasjoner')} ·{' '}
+        {formatCount(usedPenalties, 'brukt straff', 'brukte straffer')}
       </p>
 
       <HistoryList
         history={state.history}
         participants={state.participants}
         presentations={state.presentations}
+        penalties={state.penalties}
         onRestoreParticipant={(participantId) =>
           dispatch({
             type: 'restoreParticipant',
@@ -73,6 +77,12 @@ function HistoryPage({ state, dispatch }: HistoryPageProps) {
           dispatch({
             type: 'restorePresentation',
             presentationId,
+          })
+        }
+        onRestorePenalty={(penaltyId) =>
+          dispatch({
+            type: 'restorePenalty',
+            penaltyId,
           })
         }
       />

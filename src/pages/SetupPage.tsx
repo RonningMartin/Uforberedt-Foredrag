@@ -1,15 +1,19 @@
 import type { Dispatch } from 'react'
 
+import PenaltyManager from '../components/PenaltyManager'
 import ParticipantManager from '../components/ParticipantManager'
 import PresentationManager from '../components/PresentationManager'
 import { getAppStats } from '../state/appState'
 import type { AppAction, AppState, ValidationResult } from '../types/app'
-import type { EntityId, Participant, Presentation } from '../types/domain'
+import type { EntityId, Participant, Penalty, Presentation } from '../types/domain'
 import {
   createParticipant,
+  createPenalty,
   createPresentation,
+  parsePenaltyBulkInput,
   parseParticipantBulkInput,
   parsePresentationBulkInput,
+  validatePenaltyInput,
   validateParticipantName,
   validatePresentationInput,
 } from '../utils/setupValidation'
@@ -78,6 +82,54 @@ function SetupPage({ state, dispatch }: SetupPageProps) {
     return result
   }
 
+  function handleAddPenalty(title: string, description: string): ValidationResult<Penalty> {
+    const result = createPenalty({ title, description }, state.penalties)
+
+    if (result.success) {
+      dispatch({
+        type: 'addPenalty',
+        penalty: result.data,
+      })
+    }
+
+    return result
+  }
+
+  function handleBulkAddPenalties(input: string): ValidationResult<Penalty[]> {
+    const result = parsePenaltyBulkInput(input, state.penalties)
+
+    if (result.success) {
+      dispatch({
+        type: 'addPenalties',
+        penalties: result.data,
+      })
+    }
+
+    return result
+  }
+
+  function handleUpdatePenalty(
+    penaltyId: EntityId,
+    title: string,
+    description: string,
+  ): ValidationResult<{
+    title: string
+    description: string | null
+  }> {
+    const result = validatePenaltyInput({ title, description }, state.penalties, penaltyId)
+
+    if (result.success) {
+      dispatch({
+        type: 'updatePenalty',
+        penaltyId,
+        title: result.data.title,
+        description: result.data.description,
+      })
+    }
+
+    return result
+  }
+
   function handleBulkAddPresentations(input: string): ValidationResult<Presentation[]> {
     const result = parsePresentationBulkInput(input, state.presentations)
 
@@ -122,7 +174,8 @@ function SetupPage({ state, dispatch }: SetupPageProps) {
         </div>
         <p className="status-line">
           {formatCount(stats.participants.available, 'deltaker', 'deltakere')} tilgjengelige ·{' '}
-          {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige
+          {formatCount(stats.presentations.available, 'presentasjon', 'presentasjoner')} tilgjengelige ·{' '}
+          {formatCount(stats.penalties.available, 'straff', 'straffer')} tilgjengelige
         </p>
       </div>
 
@@ -175,6 +228,32 @@ function SetupPage({ state, dispatch }: SetupPageProps) {
             dispatch({
               type: 'restorePresentation',
               presentationId,
+            })
+          }
+        />
+
+        <PenaltyManager
+          penalties={state.penalties}
+          onAddPenalty={handleAddPenalty}
+          onBulkAddPenalties={handleBulkAddPenalties}
+          onUpdatePenalty={handleUpdatePenalty}
+          onDeletePenalty={(penaltyId) =>
+            dispatch({
+              type: 'deletePenalty',
+              penaltyId,
+            })
+          }
+          onSetPenaltyActive={(penaltyId, isActive) =>
+            dispatch({
+              type: 'setPenaltyActive',
+              penaltyId,
+              isActive,
+            })
+          }
+          onRestorePenalty={(penaltyId) =>
+            dispatch({
+              type: 'restorePenalty',
+              penaltyId,
             })
           }
         />

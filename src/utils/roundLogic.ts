@@ -2,6 +2,7 @@ import type { ValidationResult } from '../types/app'
 import type {
   DraftRound,
   Participant,
+  Penalty,
   Presentation,
   RoundHistoryEntry,
 } from '../types/domain'
@@ -24,6 +25,10 @@ export function getAvailablePresentations(
   presentations: readonly Presentation[],
 ): Presentation[] {
   return presentations.filter((presentation) => presentation.isActive && !presentation.isUsed)
+}
+
+export function getAvailablePenalties(penalties: readonly Penalty[]): Penalty[] {
+  return penalties.filter((penalty) => penalty.isActive && !penalty.isUsed)
 }
 
 export function selectAvailableParticipant(
@@ -66,6 +71,19 @@ export function selectAvailablePresentation(
   return success(selectSecureRandomItem(availablePresentations, randomSource).item)
 }
 
+export function selectAvailablePenalty(
+  penalties: readonly Penalty[],
+  randomSource?: RandomSource,
+): ValidationResult<Penalty> {
+  const availablePenalties = getAvailablePenalties(penalties)
+
+  if (availablePenalties.length === 0) {
+    return failure('Det finnes ingen tilgjengelige straffer igjen.')
+  }
+
+  return success(selectSecureRandomItem(availablePenalties, randomSource).item)
+}
+
 export function createParticipantRoundSelection(
   currentRound: DraftRound | null,
   participant: Participant,
@@ -82,6 +100,9 @@ export function createParticipantRoundSelection(
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
     startedAt: currentRound?.step === 'complete' ? startedAt : currentRound?.startedAt ?? startedAt,
   }
@@ -104,6 +125,9 @@ export function moveRoundToTeammateSelection(currentRound: DraftRound | null): D
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -123,6 +147,9 @@ export function moveRoundToPresentation(currentRound: DraftRound | null): DraftR
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -145,6 +172,9 @@ export function createPresentationRoundSelection(
     presentationId: presentation.id,
     presentationTitle: presentation.title,
     presentationUrl: presentation.url,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -164,6 +194,9 @@ export function moveRoundToConfirm(currentRound: DraftRound | null): DraftRound 
   return {
     ...currentRound,
     step: 'confirm',
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -189,6 +222,9 @@ export function createTeammateRoundSelection(
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -210,6 +246,9 @@ export function moveRoundBackToParticipant(currentRound: DraftRound | null): Dra
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -231,6 +270,9 @@ export function removeTeammateFromRound(currentRound: DraftRound | null): DraftR
     presentationId: null,
     presentationTitle: null,
     presentationUrl: null,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 }
@@ -247,7 +289,59 @@ export function moveRoundBackToPresentation(currentRound: DraftRound | null): Dr
   return {
     ...currentRound,
     step: 'presentation',
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
+  }
+}
+
+export function moveRoundToPenaltySelection(currentRound: DraftRound | null): DraftRound | null {
+  if (currentRound === null || currentRound.historyEntryId === null) {
+    return null
+  }
+
+  if (currentRound.penaltyId !== null) {
+    return currentRound
+  }
+
+  return {
+    ...currentRound,
+    step: 'penalty',
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
+  }
+}
+
+export function createPenaltyRoundSelection(
+  currentRound: DraftRound | null,
+  penalty: Penalty,
+): DraftRound | null {
+  if (currentRound === null || currentRound.historyEntryId === null) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: 'penalty',
+    penaltyId: penalty.id,
+    penaltyTitle: penalty.title,
+    penaltyDescription: penalty.description,
+  }
+}
+
+export function cancelPenaltySelection(currentRound: DraftRound | null): DraftRound | null {
+  if (currentRound === null || currentRound.historyEntryId === null) {
+    return null
+  }
+
+  return {
+    ...currentRound,
+    step: 'complete',
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
   }
 }
 
@@ -278,7 +372,26 @@ export function createHistoryEntryFromRound(
     presentationId: currentRound.presentationId,
     presentationTitle: currentRound.presentationTitle,
     presentationUrl: currentRound.presentationUrl,
+    penaltyId: currentRound.penaltyId,
+    penaltyTitle: currentRound.penaltyTitle,
+    penaltyDescription: currentRound.penaltyDescription,
     completedAt,
+  })
+}
+
+export function createHistoryEntryWithPenalty(
+  historyEntry: RoundHistoryEntry,
+  penalty: Penalty,
+): ValidationResult<RoundHistoryEntry> {
+  if (historyEntry.penaltyId !== null) {
+    return failure('Runden har allerede en bekreftet straff.')
+  }
+
+  return success({
+    ...historyEntry,
+    penaltyId: penalty.id,
+    penaltyTitle: penalty.title,
+    penaltyDescription: penalty.description,
   })
 }
 
@@ -300,6 +413,9 @@ export function createCompletedRound(
     presentationId: historyEntry.presentationId,
     presentationTitle: historyEntry.presentationTitle,
     presentationUrl: historyEntry.presentationUrl,
+    penaltyId: historyEntry.penaltyId,
+    penaltyTitle: historyEntry.penaltyTitle,
+    penaltyDescription: historyEntry.penaltyDescription,
     historyEntryId: historyEntry.id,
   }
 }
@@ -308,13 +424,14 @@ export function reconcileCurrentRound(
   currentRound: DraftRound | null,
   participants: readonly Participant[],
   presentations: readonly Presentation[],
+  penalties: readonly Penalty[],
   history: readonly RoundHistoryEntry[],
 ): DraftRound | null {
   if (currentRound === null) {
     return null
   }
 
-  if (currentRound.step === 'complete') {
+  if (currentRound.step === 'complete' || currentRound.step === 'penalty') {
     if (currentRound.historyEntryId === null) {
       return null
     }
@@ -325,15 +442,33 @@ export function reconcileCurrentRound(
       return null
     }
 
+    if (currentRound.step === 'complete') {
+      return syncRoundFromHistoryEntry(currentRound, matchingHistoryEntry, 'complete')
+    }
+
+    if (matchingHistoryEntry.penaltyId !== null) {
+      return syncRoundFromHistoryEntry(currentRound, matchingHistoryEntry, 'complete')
+    }
+
+    if (currentRound.penaltyId === null) {
+      return syncRoundFromHistoryEntry(currentRound, matchingHistoryEntry, 'penalty')
+    }
+
+    const selectedPenalty = penalties.find((candidate) => candidate.id === currentRound.penaltyId)
+
+    if (
+      selectedPenalty === undefined ||
+      !selectedPenalty.isActive ||
+      selectedPenalty.isUsed
+    ) {
+      return syncRoundFromHistoryEntry(currentRound, matchingHistoryEntry, 'penalty')
+    }
+
     return {
-      ...currentRound,
-      primaryParticipantId: matchingHistoryEntry.primaryParticipantId,
-      primaryParticipantName: matchingHistoryEntry.primaryParticipantName,
-      teammateParticipantId: matchingHistoryEntry.teammateParticipantId,
-      teammateParticipantName: matchingHistoryEntry.teammateParticipantName,
-      presentationId: matchingHistoryEntry.presentationId,
-      presentationTitle: matchingHistoryEntry.presentationTitle,
-      presentationUrl: matchingHistoryEntry.presentationUrl,
+      ...syncRoundFromHistoryEntry(currentRound, matchingHistoryEntry, 'penalty'),
+      penaltyId: selectedPenalty.id,
+      penaltyTitle: selectedPenalty.title,
+      penaltyDescription: selectedPenalty.description,
     }
   }
 
@@ -353,6 +488,9 @@ export function reconcileCurrentRound(
     ...currentRound,
     primaryParticipantId: primaryParticipant.id,
     primaryParticipantName: primaryParticipant.name,
+    penaltyId: null,
+    penaltyTitle: null,
+    penaltyDescription: null,
     historyEntryId: null,
   }
 
@@ -462,6 +600,8 @@ export function reconcileCurrentRound(
     return {
       ...baseRound,
       step: 'presentation',
+      teammateParticipantId,
+      teammateParticipantName,
       presentationId: null,
       presentationTitle: null,
       presentationUrl: null,
@@ -476,6 +616,28 @@ export function reconcileCurrentRound(
     presentationId: presentation.id,
     presentationTitle: presentation.title,
     presentationUrl: presentation.url,
+  }
+}
+
+function syncRoundFromHistoryEntry(
+  currentRound: DraftRound,
+  historyEntry: RoundHistoryEntry,
+  step: 'complete' | 'penalty',
+): DraftRound {
+  return {
+    ...currentRound,
+    step,
+    primaryParticipantId: historyEntry.primaryParticipantId,
+    primaryParticipantName: historyEntry.primaryParticipantName,
+    teammateParticipantId: historyEntry.teammateParticipantId,
+    teammateParticipantName: historyEntry.teammateParticipantName,
+    presentationId: historyEntry.presentationId,
+    presentationTitle: historyEntry.presentationTitle,
+    presentationUrl: historyEntry.presentationUrl,
+    penaltyId: step === 'complete' ? historyEntry.penaltyId : null,
+    penaltyTitle: step === 'complete' ? historyEntry.penaltyTitle : null,
+    penaltyDescription: step === 'complete' ? historyEntry.penaltyDescription : null,
+    historyEntryId: historyEntry.id,
   }
 }
 

@@ -36,14 +36,15 @@ afterEach(() => {
 })
 
 describe('HistoryPage', () => {
-  it('shows both solo and team rounds and can undo the latest lagrunde', () => {
+  it('shows rounds with and without penalties and can undo the latest lagrunde with penalty', () => {
     const view = renderHistoryPage()
 
     expect(view.container.textContent).toContain('Runde 2')
     expect(view.container.textContent).toContain('Siste runde')
     expect(view.container.textContent).toContain('Bjarne + Cora')
     expect(view.container.textContent).toContain('Ada')
-    expect(view.container.textContent).toContain('https://example.com/sirkler')
+    expect(view.container.textContent).toContain('Ingen straff')
+    expect(view.container.textContent).toContain('Syng en sang')
 
     view.click('Angre siste runde')
 
@@ -51,14 +52,21 @@ describe('HistoryPage', () => {
     expect(view.getLatestState().participants[1]?.isUsed).toBe(false)
     expect(view.getLatestState().participants[2]?.isUsed).toBe(false)
     expect(view.getLatestState().presentations[1]?.isUsed).toBe(false)
+    expect(view.getLatestState().penalties[0]?.isUsed).toBe(false)
   })
 
-  it('can restore the primary participant, teammate and presentation from history', () => {
+  it('can restore the primary participant, teammate, presentation and penalty from history', () => {
     const view = renderHistoryPage({
       initialState: createHistoryState({
         presentations: [
           createPresentation('presentation-1', 'Romfart'),
           createPresentation('presentation-2', 'Sirkler', {
+            isActive: false,
+            isUsed: true,
+          }),
+        ],
+        penalties: [
+          createPenalty('penalty-1', 'Syng en sang', {
             isActive: false,
             isUsed: true,
           }),
@@ -69,6 +77,7 @@ describe('HistoryPage', () => {
     view.click('Gjenopprett hoveddeltaker')
     view.click('Gjenopprett lagkamerat')
     view.click('Gjenopprett presentasjon')
+    view.click('Gjenopprett straff')
 
     expect(view.getLatestState().participants[1]).toMatchObject({
       isActive: true,
@@ -79,6 +88,10 @@ describe('HistoryPage', () => {
       isUsed: false,
     })
     expect(view.getLatestState().presentations[1]).toMatchObject({
+      isActive: true,
+      isUsed: false,
+    })
+    expect(view.getLatestState().penalties[0]).toMatchObject({
       isActive: true,
       isUsed: false,
     })
@@ -96,7 +109,10 @@ describe('HistoryPage', () => {
     expect(view.getLatestState().history).toHaveLength(0)
     expect(view.getLatestState().participants).toHaveLength(3)
     expect(view.getLatestState().presentations).toHaveLength(2)
+    expect(view.getLatestState().penalties).toHaveLength(1)
     expect(view.getLatestState().participants.every((participant) => participant.isUsed === false)).toBe(true)
+    expect(view.getLatestState().presentations.every((presentation) => presentation.isUsed === false)).toBe(true)
+    expect(view.getLatestState().penalties.every((penalty) => penalty.isUsed === false)).toBe(true)
     expect(view.getLatestState().activeView).toBe('history')
   })
 
@@ -162,6 +178,9 @@ function createHistoryState(overrides?: Partial<AppState>): AppState {
       createPresentation('presentation-1', 'Romfart'),
       createPresentation('presentation-2', 'Sirkler', { isUsed: true }),
     ],
+    penalties: [
+      createPenalty('penalty-1', 'Syng en sang', { isUsed: true }),
+    ],
     history: [
       {
         id: 'history-1',
@@ -173,6 +192,9 @@ function createHistoryState(overrides?: Partial<AppState>): AppState {
         presentationId: 'presentation-1',
         presentationTitle: 'Romfart',
         presentationUrl: 'https://example.com/romfart',
+        penaltyId: null,
+        penaltyTitle: null,
+        penaltyDescription: null,
         completedAt: '2026-07-30T10:00:00.000Z',
       },
       {
@@ -185,6 +207,9 @@ function createHistoryState(overrides?: Partial<AppState>): AppState {
         presentationId: 'presentation-2',
         presentationTitle: 'Sirkler',
         presentationUrl: 'https://example.com/sirkler',
+        penaltyId: 'penalty-1',
+        penaltyTitle: 'Syng en sang',
+        penaltyDescription: 'Velg en kjent sang.',
         completedAt: '2026-07-30T10:05:00.000Z',
       },
     ],
@@ -198,6 +223,9 @@ function createHistoryState(overrides?: Partial<AppState>): AppState {
       presentationId: 'presentation-2',
       presentationTitle: 'Sirkler',
       presentationUrl: 'https://example.com/sirkler',
+      penaltyId: 'penalty-1',
+      penaltyTitle: 'Syng en sang',
+      penaltyDescription: 'Velg en kjent sang.',
       historyEntryId: 'history-2',
       startedAt: '2026-07-30T09:59:00.000Z',
     },
@@ -235,5 +263,25 @@ function createPresentation(
     url: `https://example.com/${id}`,
     isActive: overrides?.isActive ?? true,
     isUsed: overrides?.isUsed ?? false,
+  }
+}
+
+function createPenalty(
+  id: string,
+  title: string,
+  overrides?: Partial<{
+    description: string | null
+    isActive: boolean
+    isUsed: boolean
+    createdAt: string
+  }>,
+) {
+  return {
+    id,
+    title,
+    description: overrides?.description ?? 'Velg en kjent sang.',
+    isActive: overrides?.isActive ?? true,
+    isUsed: overrides?.isUsed ?? false,
+    createdAt: overrides?.createdAt ?? '2026-07-30T09:00:00.000Z',
   }
 }

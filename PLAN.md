@@ -12,6 +12,22 @@ Prosjektet er per nå et fungerende Vite-prosjekt med React og TypeScript, samt 
 - Vitest er satt opp og dekker grunnleggende logikk for sikker tilfeldig trekning og gjenoppretting fra lagret state.
 - Baseline-status er god: tester og `npm run build` fungerer.
 
+## Utvidelse: Valgfritt Straffehjul
+
+Den opprinnelige faseplanen er nå implementert, og prosjektet har fått en ekstra funksjon utenfor de opprinnelige fasene:
+
+- Et valgfritt straffehjul etter bekreftet runde.
+- En egen samling med straffer i oppsettet.
+- Valgfri straff koblet til en gjennomført runde i historikken.
+- Undo, restore og `localStorage` må derfor håndtere straffer på linje med deltakere og presentasjoner.
+
+Føringer for denne utvidelsen:
+
+- Straff skal aldri være påkrevd for å starte neste runde.
+- Straff trekkes og bekreftes etter at selve runden allerede er bekreftet.
+- Foreløpig trukket straff må kunne avbrytes uten at noe markeres som brukt.
+- Eksisterende lagrede runder uten straff må fortsatt kunne leses trygt.
+
 ## Sammenligning mot kravspesifikasjonen
 
 ### Allerede på plass

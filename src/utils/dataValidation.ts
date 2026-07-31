@@ -4,6 +4,7 @@ import type {
   AppSettings,
   DraftRound,
   Participant,
+  Penalty,
   Presentation,
   RoundHistoryEntry,
   RoundStep,
@@ -13,7 +14,14 @@ import { reconcileCurrentRound } from './roundLogic'
 type UnknownRecord = Record<string, unknown>
 
 const validViews: readonly AppView[] = ['setup', 'event', 'history']
-const validRoundSteps: readonly RoundStep[] = ['participant', 'teammate', 'presentation', 'confirm', 'complete']
+const validRoundSteps: readonly RoundStep[] = [
+  'participant',
+  'teammate',
+  'presentation',
+  'confirm',
+  'complete',
+  'penalty',
+]
 
 export function validateAppState(value: unknown): ValidationResult<AppState> {
   const errors: string[] = []
@@ -32,6 +40,12 @@ export function validateAppState(value: unknown): ValidationResult<AppState> {
     value.presentations,
     'presentations',
     validatePresentation,
+    errors,
+  )
+  const penalties = readOptionalArray(
+    value.penalties,
+    'penalties',
+    validatePenalty,
     errors,
   )
   const history = readArray(value.history, 'history', validateHistoryEntry, errors)
@@ -57,8 +71,15 @@ export function validateAppState(value: unknown): ValidationResult<AppState> {
       activeView,
       participants,
       presentations,
+      penalties,
       history,
-      currentRound: reconcileCurrentRound(currentRound, participants, presentations, history),
+      currentRound: reconcileCurrentRound(
+        currentRound,
+        participants,
+        presentations,
+        penalties,
+        history,
+      ),
       settings,
     },
   }
@@ -120,6 +141,37 @@ function validatePresentation(value: unknown, path: string): ValidationResult<Pr
   }
 }
 
+function validatePenalty(value: unknown, path: string): ValidationResult<Penalty> {
+  const errors: string[] = []
+
+  if (!isRecord(value)) {
+    return failure(`${path} må være et objekt.`)
+  }
+
+  const id = readString(value.id, `${path}.id`, errors)
+  const title = readString(value.title, `${path}.title`, errors)
+  const description = readOptionalNullableString(value.description, `${path}.description`, errors)
+  const isActive = readBoolean(value.isActive, `${path}.isActive`, errors)
+  const isUsed = readBoolean(value.isUsed, `${path}.isUsed`, errors)
+  const createdAt = readString(value.createdAt, `${path}.createdAt`, errors)
+
+  if (errors.length > 0) {
+    return { success: false, errors }
+  }
+
+  return {
+    success: true,
+    data: {
+      id,
+      title,
+      description,
+      isActive,
+      isUsed,
+      createdAt,
+    },
+  }
+}
+
 function validateHistoryEntry(value: unknown, path: string): ValidationResult<RoundHistoryEntry> {
   const errors: string[] = []
 
@@ -152,6 +204,13 @@ function validateHistoryEntry(value: unknown, path: string): ValidationResult<Ro
   const presentationId = readString(value.presentationId, `${path}.presentationId`, errors)
   const presentationTitle = readString(value.presentationTitle, `${path}.presentationTitle`, errors)
   const presentationUrl = readString(value.presentationUrl, `${path}.presentationUrl`, errors)
+  const penaltyId = readOptionalNullableString(value.penaltyId, `${path}.penaltyId`, errors)
+  const penaltyTitle = readOptionalNullableString(value.penaltyTitle, `${path}.penaltyTitle`, errors)
+  const penaltyDescription = readOptionalNullableString(
+    value.penaltyDescription,
+    `${path}.penaltyDescription`,
+    errors,
+  )
   const completedAt = readString(value.completedAt, `${path}.completedAt`, errors)
 
   if (errors.length > 0) {
@@ -170,6 +229,9 @@ function validateHistoryEntry(value: unknown, path: string): ValidationResult<Ro
       presentationId,
       presentationTitle,
       presentationUrl,
+      penaltyId,
+      penaltyTitle,
+      penaltyDescription,
       completedAt,
     },
   }
@@ -219,6 +281,21 @@ function validateDraftRound(value: unknown, path: string): ValidationResult<Draf
     `${path}.presentationUrl`,
     errors,
   )
+  const penaltyId = readOptionalNullableString(
+    value.penaltyId,
+    `${path}.penaltyId`,
+    errors,
+  )
+  const penaltyTitle = readOptionalNullableString(
+    value.penaltyTitle,
+    `${path}.penaltyTitle`,
+    errors,
+  )
+  const penaltyDescription = readOptionalNullableString(
+    value.penaltyDescription,
+    `${path}.penaltyDescription`,
+    errors,
+  )
   const historyEntryId = readNullableString(value.historyEntryId, `${path}.historyEntryId`, errors)
   const startedAt = readString(value.startedAt, `${path}.startedAt`, errors)
 
@@ -238,6 +315,9 @@ function validateDraftRound(value: unknown, path: string): ValidationResult<Draf
       presentationId,
       presentationTitle,
       presentationUrl,
+      penaltyId,
+      penaltyTitle,
+      penaltyDescription,
       historyEntryId,
       startedAt,
     },
@@ -296,6 +376,19 @@ function readArray<T>(
   return items
 }
 
+function readOptionalArray<T>(
+  value: unknown,
+  path: string,
+  validateItem: (item: unknown, itemPath: string) => ValidationResult<T>,
+  errors: string[],
+): T[] {
+  if (value === undefined) {
+    return []
+  }
+
+  return readArray(value, path, validateItem, errors)
+}
+
 function readObject<T>(
   value: unknown,
   path: string,
@@ -338,12 +431,12 @@ function readVersion(value: unknown, path: string, errors: string[]): number {
     return APP_STATE_VERSION
   }
 
-  if (value !== APP_STATE_VERSION) {
-    errors.push(`${path} må være ${APP_STATE_VERSION}.`)
+  if (value < 1 || value > APP_STATE_VERSION) {
+    errors.push(`${path} må være mellom 1 og ${APP_STATE_VERSION}.`)
     return APP_STATE_VERSION
   }
 
-  return value
+  return APP_STATE_VERSION
 }
 
 function readView(value: unknown, path: string, errors: string[]): AppView {

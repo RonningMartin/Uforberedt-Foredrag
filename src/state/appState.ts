@@ -1,7 +1,7 @@
 import type { AppState, AppView } from '../types/app'
 import type { AppSettings } from '../types/domain'
 
-export const APP_STATE_VERSION = 1
+export const APP_STATE_VERSION = 2
 export const APP_STORAGE_KEY = 'uforberedt-foredrag/app-state'
 
 export const APP_VIEWS: readonly AppView[] = ['setup', 'event', 'history']
@@ -24,6 +24,7 @@ export function createInitialAppState(): AppState {
     activeView: 'setup',
     participants: [],
     presentations: [],
+    penalties: [],
     history: [],
     currentRound: null,
     settings: createInitialSettings(),
@@ -38,6 +39,9 @@ export function getAppStats(state: AppState) {
   const availablePresentations = state.presentations.filter(
     (presentation) => presentation.isActive && !presentation.isUsed,
   ).length
+  const availablePenalties = state.penalties.filter(
+    (penalty) => penalty.isActive && !penalty.isUsed,
+  ).length
 
   return {
     participants: {
@@ -47,6 +51,10 @@ export function getAppStats(state: AppState) {
     presentations: {
       total: state.presentations.length,
       available: availablePresentations,
+    },
+    penalties: {
+      total: state.penalties.length,
+      available: availablePenalties,
     },
     historyCount: state.history.length,
   }

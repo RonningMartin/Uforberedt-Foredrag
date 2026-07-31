@@ -9,6 +9,7 @@ Dette prosjektet skal videreutvikles som en frontend-only webapp i det eksistere
 - Bruk React, TypeScript og Vite.
 - Lagre applikasjonsdata lokalt med `localStorage`.
 - Ikke innfør krav om backend, database eller autentisering.
+- Deltakere, presentasjoner, straffer og historikk skal alle kunne lagres og gjenopprettes lokalt.
 - TypeScript skal brukes med sterke typer og uten unødvendig `any`.
 - Store nye avhengigheter skal ikke installeres uten tydelig begrunnelse.
 
@@ -28,6 +29,7 @@ Dette prosjektet skal videreutvikles som en frontend-only webapp i det eksistere
 - Appen skal ha et minimalistisk arrangementgrensesnitt og et praktisk oppsett, ikke et utviklerdashboard.
 - Nye sider skal ikke fylles med utviklerforklaringer eller unødvendige dashboard-kort.
 - Nye funksjoner skal være i tråd med prosjektets plan i `PLAN.md`, med mindre brukeren ber om en bevisst endring av kurs.
+- Straffer skal følge de samme begrepene for tilgjengelig, brukt, deaktivert og gjenopprettet som resten av oppsettet.
 
 ## Verifisering etter endringer
 

@@ -1,6 +1,7 @@
 import type {
   EntityId,
   Participant,
+  Penalty,
   Presentation,
   RoundHistoryEntry,
 } from '../types/domain'
@@ -10,16 +11,20 @@ interface HistoryListProps {
   history: readonly RoundHistoryEntry[]
   participants: readonly Participant[]
   presentations: readonly Presentation[]
+  penalties: readonly Penalty[]
   onRestoreParticipant: (participantId: EntityId) => void
   onRestorePresentation: (presentationId: EntityId) => void
+  onRestorePenalty: (penaltyId: EntityId) => void
 }
 
 function HistoryList({
   history,
   participants,
   presentations,
+  penalties,
   onRestoreParticipant,
   onRestorePresentation,
+  onRestorePenalty,
 }: HistoryListProps) {
   if (history.length === 0) {
     return <p className="empty-state">Ingen bekreftede runder ennå.</p>
@@ -31,6 +36,8 @@ function HistoryList({
         const participantEntries = getParticipantEntries(entry)
         const presentation = presentations.find((candidate) => candidate.id === entry.presentationId)
         const presentationRestore = getPresentationRestoreState(presentation)
+        const penalty = penalties.find((candidate) => candidate.id === entry.penaltyId)
+        const penaltyRestore = getPenaltyRestoreState(entry, penalty)
 
         return (
           <li key={entry.id} className="history-card">
@@ -104,6 +111,27 @@ function HistoryList({
                   {presentationRestore.label}
                 </button>
               </section>
+
+              <section className="history-card__section">
+                <p className="history-card__label">Straff</p>
+                <strong>{entry.penaltyTitle ?? 'Ingen straff'}</strong>
+                {entry.penaltyDescription !== null ? (
+                  <p className="history-card__url">{entry.penaltyDescription}</p>
+                ) : null}
+                {penaltyRestore.hint !== null ? (
+                  <p className="history-card__hint">{penaltyRestore.hint}</p>
+                ) : null}
+                {penaltyRestore.label !== null && entry.penaltyId !== null ? (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => onRestorePenalty(entry.penaltyId!)}
+                    disabled={penaltyRestore.disabled}
+                  >
+                    {penaltyRestore.label}
+                  </button>
+                ) : null}
+              </section>
             </div>
           </li>
         )
@@ -121,7 +149,7 @@ interface ParticipantEntry {
 }
 
 interface RestoreState {
-  label: string
+  label: string | null
   disabled: boolean
   hint: string | null
 }
@@ -200,6 +228,41 @@ function getPresentationRestoreState(
 
   return {
     label: 'Gjenopprett presentasjon',
+    disabled: false,
+    hint: entity.isUsed ? 'Var markert som brukt.' : 'Var deaktivert og blir gjort tilgjengelig igjen.',
+  }
+}
+
+function getPenaltyRestoreState(
+  entry: RoundHistoryEntry,
+  entity: Penalty | undefined,
+): RestoreState {
+  if (entry.penaltyId === null) {
+    return {
+      label: null,
+      disabled: true,
+      hint: 'Denne runden fikk ingen straff.',
+    }
+  }
+
+  if (entity === undefined) {
+    return {
+      label: 'Straffen er slettet',
+      disabled: true,
+      hint: 'Elementet finnes ikke lenger i oppsettet.',
+    }
+  }
+
+  if (entity.isActive && !entity.isUsed) {
+    return {
+      label: 'Straffen er allerede tilgjengelig',
+      disabled: true,
+      hint: 'Kan allerede trekkes i en ny runde.',
+    }
+  }
+
+  return {
+    label: 'Gjenopprett straff',
     disabled: false,
     hint: entity.isUsed ? 'Var markert som brukt.' : 'Var deaktivert og blir gjort tilgjengelig igjen.',
   }

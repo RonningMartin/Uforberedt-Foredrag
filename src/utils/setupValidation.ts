@@ -1,12 +1,18 @@
 import type { ValidationResult } from '../types/app'
-import type { EntityId, Participant, Presentation } from '../types/domain'
+import type { EntityId, Participant, Penalty, Presentation } from '../types/domain'
 import { createEntityId } from './entityId'
 
 type IdFactory = () => EntityId
+type TimestampFactory = () => string
 
 interface PresentationInput {
   title: string
   url: string
+}
+
+interface PenaltyInput {
+  title: string
+  description: string
 }
 
 export function createParticipant(
@@ -45,6 +51,28 @@ export function createPresentation(
     url: validation.data.url,
     isActive: true,
     isUsed: false,
+  })
+}
+
+export function createPenalty(
+  input: PenaltyInput,
+  existingPenalties: readonly Penalty[],
+  createId: IdFactory = createEntityId,
+  createTimestamp: TimestampFactory = () => new Date().toISOString(),
+): ValidationResult<Penalty> {
+  const validation = validatePenaltyInput(input, existingPenalties)
+
+  if (!validation.success) {
+    return validation
+  }
+
+  return success({
+    id: createId(),
+    title: validation.data.title,
+    description: validation.data.description,
+    isActive: true,
+    isUsed: false,
+    createdAt: createTimestamp(),
   })
 }
 
@@ -115,6 +143,37 @@ export function validatePresentationInput(
   return success({
     title: normalizedTitle,
     url: normalizedUrl,
+  })
+}
+
+export function validatePenaltyInput(
+  input: PenaltyInput,
+  existingPenalties: readonly Penalty[],
+  excludeId?: EntityId,
+): ValidationResult<{
+  title: string
+  description: string | null
+}> {
+  const normalizedTitle = normalizeDisplayText(input.title)
+  const normalizedDescription = normalizeOptionalLongText(input.description)
+
+  if (normalizedTitle.length === 0) {
+    return failure('Skriv inn en straff.')
+  }
+
+  const duplicate = existingPenalties.find(
+    (penalty) =>
+      penalty.id !== excludeId &&
+      normalizeLookupText(penalty.title) === normalizeLookupText(normalizedTitle),
+  )
+
+  if (duplicate !== undefined) {
+    return failure(`Straffen "${normalizedTitle}" finnes allerede.`)
+  }
+
+  return success({
+    title: normalizedTitle,
+    description: normalizedDescription,
   })
 }
 
@@ -271,6 +330,68 @@ export function parsePresentationBulkInput(
   return success(createdPresentations)
 }
 
+export function parsePenaltyBulkInput(
+  input: string,
+  existingPenalties: readonly Penalty[],
+  createId: IdFactory = createEntityId,
+  createTimestamp: TimestampFactory = () => new Date().toISOString(),
+): ValidationResult<Penalty[]> {
+  const existingTitles = new Set(
+    existingPenalties.map((penalty) => normalizeLookupText(penalty.title)),
+  )
+
+  const seenTitles = new Set<string>()
+  const createdPenalties: Penalty[] = []
+  const errors: string[] = []
+
+  input.split(/\r?\n/).forEach((rawLine, index) => {
+    const lineNumber = index + 1
+    const trimmedLine = rawLine.trim()
+
+    if (trimmedLine.length === 0) {
+      return
+    }
+
+    const title = normalizeDisplayText(trimmedLine)
+    const titleLookup = normalizeLookupText(title)
+
+    if (title.length === 0) {
+      errors.push(`Linje ${lineNumber}: Straffen kan ikke være tom.`)
+      return
+    }
+
+    if (existingTitles.has(titleLookup)) {
+      errors.push(`Linje ${lineNumber}: Straffen "${title}" finnes allerede.`)
+      return
+    }
+
+    if (seenTitles.has(titleLookup)) {
+      errors.push(`Linje ${lineNumber}: Straffen "${title}" er duplisert i listen.`)
+      return
+    }
+
+    seenTitles.add(titleLookup)
+    createdPenalties.push({
+      id: createId(),
+      title,
+      description: null,
+      isActive: true,
+      isUsed: false,
+      createdAt: createTimestamp(),
+    })
+  })
+
+  if (createdPenalties.length === 0 && errors.length === 0) {
+    errors.push('Legg inn minst én straff.')
+  }
+
+  if (errors.length > 0) {
+    return failure(...errors)
+  }
+
+  return success(createdPenalties)
+}
+
 export function isValidPresentationUrl(url: string): boolean {
   try {
     const parsed = new URL(url)
@@ -290,6 +411,12 @@ function normalizeLookupText(value: string): string {
 
 function normalizeUrlForLookup(url: string): string {
   return url.trim().toLocaleLowerCase()
+}
+
+function normalizeOptionalLongText(value: string): string | null {
+  const normalizedValue = value.trim().replace(/\r\n/g, '\n')
+
+  return normalizedValue.length === 0 ? null : normalizedValue
 }
 
 function success<T>(data: T): ValidationResult<T> {

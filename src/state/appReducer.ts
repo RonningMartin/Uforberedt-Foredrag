@@ -51,6 +51,30 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
     }
 
+    case 'confirmRoundPenalty': {
+      const existingHistoryEntry = state.history.find((entry) => entry.id === action.historyEntry.id)
+
+      if (existingHistoryEntry === undefined || existingHistoryEntry.penaltyId !== null) {
+        return state
+      }
+
+      return withReconciledRound({
+        ...state,
+        penalties: state.penalties.map((penalty) =>
+          penalty.id === action.historyEntry.penaltyId
+            ? {
+                ...penalty,
+                isUsed: true,
+              }
+            : penalty,
+        ),
+        history: state.history.map((entry) =>
+          entry.id === action.historyEntry.id ? action.historyEntry : entry,
+        ),
+        currentRound: createCompletedRound(state.currentRound, action.historyEntry),
+      })
+    }
+
     case 'undoLastRound': {
       const lastHistoryEntry = state.history.at(-1)
 
@@ -81,6 +105,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               }
             : presentation,
         ),
+        penalties: state.penalties.map((penalty) =>
+          penalty.id === lastHistoryEntry.penaltyId
+            ? {
+                ...penalty,
+                isUsed: false,
+              }
+            : penalty,
+        ),
         history: state.history.slice(0, -1),
       })
     }
@@ -94,6 +126,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         })),
         presentations: state.presentations.map((presentation) => ({
           ...presentation,
+          isUsed: false,
+        })),
+        penalties: state.penalties.map((penalty) => ({
+          ...penalty,
           isUsed: false,
         })),
         history: [],
@@ -224,6 +260,65 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ),
       })
 
+    case 'addPenalty':
+      return {
+        ...state,
+        penalties: [...state.penalties, action.penalty],
+      }
+
+    case 'addPenalties':
+      return {
+        ...state,
+        penalties: [...state.penalties, ...action.penalties],
+      }
+
+    case 'updatePenalty':
+      return withReconciledRound({
+        ...state,
+        penalties: state.penalties.map((penalty) =>
+          penalty.id === action.penaltyId
+            ? {
+                ...penalty,
+                title: action.title,
+                description: action.description,
+              }
+            : penalty,
+        ),
+      })
+
+    case 'deletePenalty':
+      return withReconciledRound({
+        ...state,
+        penalties: state.penalties.filter((penalty) => penalty.id !== action.penaltyId),
+      })
+
+    case 'setPenaltyActive':
+      return withReconciledRound({
+        ...state,
+        penalties: state.penalties.map((penalty) =>
+          penalty.id === action.penaltyId
+            ? {
+                ...penalty,
+                isActive: action.isActive,
+              }
+            : penalty,
+        ),
+      })
+
+    case 'restorePenalty':
+      return withReconciledRound({
+        ...state,
+        penalties: state.penalties.map((penalty) =>
+          penalty.id === action.penaltyId
+            ? {
+                ...penalty,
+                isActive: true,
+                isUsed: false,
+              }
+            : penalty,
+        ),
+      })
+
     case 'replaceState':
       return action.nextState
 
@@ -243,6 +338,7 @@ function withReconciledRound(nextState: AppState): AppState {
       nextState.currentRound,
       nextState.participants,
       nextState.presentations,
+      nextState.penalties,
       nextState.history,
     ),
   }

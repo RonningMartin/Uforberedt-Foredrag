@@ -1,21 +1,27 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  cancelPenaltySelection,
   createHistoryEntryFromRound,
+  createHistoryEntryWithPenalty,
   createParticipantRoundSelection,
-  createTeammateRoundSelection,
+  createPenaltyRoundSelection,
   createPresentationRoundSelection,
+  createTeammateRoundSelection,
   getAvailableParticipants,
+  getAvailablePenalties,
   getAvailablePresentations,
   getAvailableTeammates,
   moveRoundBackToPresentation,
   moveRoundBackToParticipant,
   moveRoundToConfirm,
+  moveRoundToPenaltySelection,
   moveRoundToTeammateSelection,
   moveRoundToPresentation,
-  removeTeammateFromRound,
   reconcileCurrentRound,
+  removeTeammateFromRound,
   selectAvailableParticipant,
+  selectAvailablePenalty,
   selectAvailablePresentation,
   selectAvailableTeammate,
 } from './roundLogic'
@@ -37,7 +43,7 @@ class QueueRandomSource implements RandomSource {
 }
 
 describe('roundLogic', () => {
-  it('selects only active and unused candidates for participants, teammates and presentations', () => {
+  it('selects only active and unused candidates for participants, teammates, presentations and penalties', () => {
     const participants = [
       { id: 'a', name: 'Ada', isActive: true, isUsed: false },
       { id: 'b', name: 'Bjarne', isActive: true, isUsed: false },
@@ -48,13 +54,29 @@ describe('roundLogic', () => {
       { id: 'p1', title: 'Rom', url: 'https://example.com/rom', isActive: true, isUsed: false },
       { id: 'p2', title: 'Used', url: 'https://example.com/used', isActive: true, isUsed: true },
     ]
+    const penalties = [
+      {
+        id: 'penalty-1',
+        title: 'Syng en sang',
+        description: null,
+        isActive: true,
+        isUsed: false,
+        createdAt: '2026-07-30T10:00:00.000Z',
+      },
+      {
+        id: 'penalty-2',
+        title: 'Used penalty',
+        description: null,
+        isActive: true,
+        isUsed: true,
+        createdAt: '2026-07-30T10:01:00.000Z',
+      },
+    ]
 
-    expect(getAvailableParticipants(participants)).toEqual([
-      participants[0],
-      participants[1],
-    ])
+    expect(getAvailableParticipants(participants)).toEqual([participants[0], participants[1]])
     expect(getAvailableTeammates(participants, 'a')).toEqual([participants[1]])
-    expect(getAvailablePresentations(presentations)).toHaveLength(1)
+    expect(getAvailablePresentations(presentations)).toEqual([presentations[0]])
+    expect(getAvailablePenalties(penalties)).toEqual([penalties[0]])
     expect(selectAvailableParticipant(participants, new QueueRandomSource([0]))).toEqual({
       success: true,
       data: participants[0],
@@ -66,6 +88,10 @@ describe('roundLogic', () => {
     expect(selectAvailablePresentation(presentations, new QueueRandomSource([0]))).toEqual({
       success: true,
       data: presentations[0],
+    })
+    expect(selectAvailablePenalty(penalties, new QueueRandomSource([0]))).toEqual({
+      success: true,
+      data: penalties[0],
     })
   })
 
@@ -82,9 +108,13 @@ describe('roundLogic', () => {
       success: false,
       errors: ['Det finnes ingen tilgjengelige presentasjoner igjen.'],
     })
+    expect(selectAvailablePenalty([], new QueueRandomSource([0]))).toEqual({
+      success: false,
+      errors: ['Det finnes ingen tilgjengelige straffer igjen.'],
+    })
   })
 
-  it('keeps selections temporary until the round is confirmed', () => {
+  it('keeps participant, teammate, presentation and penalty selections temporary until they are confirmed', () => {
     const participant = { id: 'participant-1', name: 'Ada', isActive: true, isUsed: false }
     const teammate = { id: 'participant-2', name: 'Bjarne', isActive: true, isUsed: false }
     const presentation = {
@@ -93,6 +123,14 @@ describe('roundLogic', () => {
       url: 'https://example.com/romfart',
       isActive: true,
       isUsed: false,
+    }
+    const penalty = {
+      id: 'penalty-1',
+      title: 'Syng en sang',
+      description: 'Velg en kjent sang.',
+      isActive: true,
+      isUsed: false,
+      createdAt: '2026-07-30T10:00:00.000Z',
     }
 
     const participantRound = createParticipantRoundSelection(
@@ -106,6 +144,19 @@ describe('roundLogic', () => {
     const presentationRound = moveRoundToPresentation(selectedTeammateRound)
     const selectedPresentationRound = createPresentationRoundSelection(presentationRound, presentation)
     const confirmRound = moveRoundToConfirm(selectedPresentationRound)
+    const historyEntry = createHistoryEntryFromRound(
+      confirmRound,
+      0,
+      'history-1',
+      '2026-07-29T09:10:00.000Z',
+    )
+    const penaltyStep = moveRoundToPenaltySelection({
+      ...confirmRound!,
+      step: 'complete',
+      historyEntryId: 'history-1',
+    })
+    const selectedPenaltyRound = createPenaltyRoundSelection(penaltyStep, penalty)
+    const cancelledPenaltyRound = cancelPenaltySelection(selectedPenaltyRound)
     const resetToPresentation = moveRoundBackToPresentation(confirmRound)
     const resetToParticipant = moveRoundBackToParticipant(confirmRound)
     const removeTeammateRound = removeTeammateFromRound(selectedTeammateRound)
@@ -113,22 +164,22 @@ describe('roundLogic', () => {
     expect(participant.isUsed).toBe(false)
     expect(teammate.isUsed).toBe(false)
     expect(presentation.isUsed).toBe(false)
-    expect(selectedTeammateRound).toMatchObject({
-      step: 'teammate',
-      primaryParticipantId: 'participant-1',
-      teammateParticipantId: 'participant-2',
+    expect(penalty.isUsed).toBe(false)
+    expect(historyEntry).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        penaltyId: null,
+      }),
     })
-    expect(selectedPresentationRound).toMatchObject({
-      step: 'presentation',
-      primaryParticipantId: 'participant-1',
-      teammateParticipantId: 'participant-2',
-      presentationId: 'presentation-1',
+    expect(selectedPenaltyRound).toMatchObject({
+      step: 'penalty',
+      penaltyId: 'penalty-1',
+      penaltyTitle: 'Syng en sang',
     })
-    expect(confirmRound).toMatchObject({
-      step: 'confirm',
-      primaryParticipantId: 'participant-1',
-      teammateParticipantId: 'participant-2',
-      presentationId: 'presentation-1',
+    expect(cancelledPenaltyRound).toMatchObject({
+      step: 'complete',
+      penaltyId: null,
+      penaltyTitle: null,
     })
     expect(resetToPresentation).toMatchObject({
       step: 'presentation',
@@ -147,9 +198,17 @@ describe('roundLogic', () => {
     })
   })
 
-  it('prevents selecting the main participant as their own teammate and handles a single teammate candidate', () => {
+  it('prevents selecting the main participant as their own teammate and attaching more than one penalty to a round', () => {
     const primary = { id: 'participant-1', name: 'Ada', isActive: true, isUsed: false }
     const teammate = { id: 'participant-2', name: 'Bjarne', isActive: true, isUsed: false }
+    const penalty = {
+      id: 'penalty-1',
+      title: 'Syng en sang',
+      description: null,
+      isActive: true,
+      isUsed: false,
+      createdAt: '2026-07-30T10:00:00.000Z',
+    }
     const currentRound = createParticipantRoundSelection(
       null,
       primary,
@@ -163,9 +222,33 @@ describe('roundLogic', () => {
       success: true,
       data: teammate,
     })
+
+    expect(
+      createHistoryEntryWithPenalty(
+        {
+          id: 'history-1',
+          roundNumber: 1,
+          primaryParticipantId: 'participant-1',
+          primaryParticipantName: 'Ada',
+          teammateParticipantId: null,
+          teammateParticipantName: null,
+          presentationId: 'presentation-1',
+          presentationTitle: 'Romfart',
+          presentationUrl: 'https://example.com/romfart',
+          penaltyId: 'penalty-2',
+          penaltyTitle: 'Eksisterende straff',
+          penaltyDescription: null,
+          completedAt: '2026-07-30T10:05:00.000Z',
+        },
+        penalty,
+      ),
+    ).toEqual({
+      success: false,
+      errors: ['Runden har allerede en bekreftet straff.'],
+    })
   })
 
-  it('creates a history entry only when the round has the required selections', () => {
+  it('creates history entries with optional penalties only when the round has the required selections', () => {
     const draftRound = {
       id: 'round-1',
       step: 'confirm' as const,
@@ -176,6 +259,9 @@ describe('roundLogic', () => {
       presentationId: 'presentation-1',
       presentationTitle: 'Romfart',
       presentationUrl: 'https://example.com/romfart',
+      penaltyId: null,
+      penaltyTitle: null,
+      penaltyDescription: null,
       historyEntryId: null,
       startedAt: '2026-07-29T09:00:00.000Z',
     }
@@ -199,12 +285,15 @@ describe('roundLogic', () => {
         presentationId: 'presentation-1',
         presentationTitle: 'Romfart',
         presentationUrl: 'https://example.com/romfart',
+        penaltyId: null,
+        penaltyTitle: null,
+        penaltyDescription: null,
         completedAt: '2026-07-29T09:03:00.000Z',
       },
     })
   })
 
-  it('resets or rewinds unfinished rounds when selected items disappear or deactivate', () => {
+  it('resets or rewinds unfinished rounds and active penalty selections when selected items disappear or deactivate', () => {
     const currentRound = {
       id: 'round-1',
       step: 'confirm' as const,
@@ -215,11 +304,14 @@ describe('roundLogic', () => {
       presentationId: 'presentation-1',
       presentationTitle: 'Romfart',
       presentationUrl: 'https://example.com/romfart',
+      penaltyId: null,
+      penaltyTitle: null,
+      penaltyDescription: null,
       historyEntryId: null,
       startedAt: '2026-07-29T09:00:00.000Z',
     }
 
-    const participantMissing = reconcileCurrentRound(currentRound, [], [], [])
+    const participantMissing = reconcileCurrentRound(currentRound, [], [], [], [])
     const teammateMissing = reconcileCurrentRound(
       currentRound,
       [{ id: 'participant-1', name: 'Ada', isActive: true, isUsed: false }],
@@ -233,6 +325,7 @@ describe('roundLogic', () => {
         },
       ],
       [],
+      [],
     )
     const presentationMissing = reconcileCurrentRound(
       currentRound,
@@ -242,6 +335,45 @@ describe('roundLogic', () => {
       ],
       [],
       [],
+      [],
+    )
+    const penaltyMissing = reconcileCurrentRound(
+      {
+        id: 'round-1',
+        step: 'penalty' as const,
+        primaryParticipantId: 'participant-1',
+        primaryParticipantName: 'Ada',
+        teammateParticipantId: null,
+        teammateParticipantName: null,
+        presentationId: 'presentation-1',
+        presentationTitle: 'Romfart',
+        presentationUrl: 'https://example.com/romfart',
+        penaltyId: 'penalty-1',
+        penaltyTitle: 'Syng en sang',
+        penaltyDescription: null,
+        historyEntryId: 'history-1',
+        startedAt: '2026-07-29T09:00:00.000Z',
+      },
+      [],
+      [],
+      [],
+      [
+        {
+          id: 'history-1',
+          roundNumber: 1,
+          primaryParticipantId: 'participant-1',
+          primaryParticipantName: 'Ada',
+          teammateParticipantId: null,
+          teammateParticipantName: null,
+          presentationId: 'presentation-1',
+          presentationTitle: 'Romfart',
+          presentationUrl: 'https://example.com/romfart',
+          penaltyId: null,
+          penaltyTitle: null,
+          penaltyDescription: null,
+          completedAt: '2026-07-30T10:05:00.000Z',
+        },
+      ],
     )
 
     expect(participantMissing).toBeNull()
@@ -255,6 +387,11 @@ describe('roundLogic', () => {
       primaryParticipantId: 'participant-1',
       teammateParticipantId: 'participant-2',
       presentationId: null,
+    })
+    expect(penaltyMissing).toMatchObject({
+      step: 'penalty',
+      penaltyId: null,
+      penaltyTitle: null,
     })
   })
 })

@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createParticipant,
+  createPenalty,
   createPresentation,
+  parsePenaltyBulkInput,
   parseParticipantBulkInput,
   parsePresentationBulkInput,
+  validatePenaltyInput,
   validateParticipantName,
   validatePresentationInput,
 } from './setupValidation'
@@ -126,6 +129,66 @@ describe('setupValidation', () => {
     expect(result).toEqual({
       success: false,
       errors: ['Linje 2: Bruk formatet "Tittel | URL".'],
+    })
+  })
+
+  it('creates, validates and bulk-parses penalties without partial saves', () => {
+    const penalties = [
+      {
+        id: 'penalty-1',
+        title: 'Syng en sang',
+        description: null,
+        isActive: true,
+        isUsed: false,
+        createdAt: '2026-07-30T10:00:00.000Z',
+      },
+    ]
+
+    expect(
+      createPenalty(
+        {
+          title: '  Fortell en pinlig historie  ',
+          description: '  Med detaljer  ',
+        },
+        penalties,
+        () => 'penalty-2',
+        () => '2026-07-30T10:05:00.000Z',
+      ),
+    ).toEqual({
+      success: true,
+      data: {
+        id: 'penalty-2',
+        title: 'Fortell en pinlig historie',
+        description: 'Med detaljer',
+        isActive: true,
+        isUsed: false,
+        createdAt: '2026-07-30T10:05:00.000Z',
+      },
+    })
+
+    expect(
+      validatePenaltyInput(
+        {
+          title: 'Syng en sang',
+          description: '',
+        },
+        penalties,
+      ),
+    ).toEqual({
+      success: false,
+      errors: ['Straffen "Syng en sang" finnes allerede.'],
+    })
+
+    expect(
+      parsePenaltyBulkInput(
+        'Ta 10 armhevinger\n\nTa 10 armhevinger\nFortell en vits',
+        [],
+        () => 'penalty',
+        () => '2026-07-30T10:10:00.000Z',
+      ),
+    ).toEqual({
+      success: false,
+      errors: ['Linje 3: Straffen "Ta 10 armhevinger" er duplisert i listen.'],
     })
   })
 })

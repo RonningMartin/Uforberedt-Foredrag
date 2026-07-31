@@ -15,7 +15,22 @@ export interface Presentation {
   isUsed: boolean
 }
 
-export type RoundStep = 'participant' | 'teammate' | 'presentation' | 'confirm' | 'complete'
+export interface Penalty {
+  id: EntityId
+  title: string
+  description: string | null
+  isActive: boolean
+  isUsed: boolean
+  createdAt: string
+}
+
+export type RoundStep =
+  | 'participant'
+  | 'teammate'
+  | 'presentation'
+  | 'confirm'
+  | 'complete'
+  | 'penalty'
 
 export interface DraftRound {
   id: EntityId
@@ -27,6 +42,9 @@ export interface DraftRound {
   presentationId: EntityId | null
   presentationTitle: string | null
   presentationUrl: string | null
+  penaltyId: EntityId | null
+  penaltyTitle: string | null
+  penaltyDescription: string | null
   historyEntryId: EntityId | null
   startedAt: string
 }
@@ -41,6 +59,9 @@ export interface RoundHistoryEntry {
   presentationId: EntityId
   presentationTitle: string
   presentationUrl: string
+  penaltyId: EntityId | null
+  penaltyTitle: string | null
+  penaltyDescription: string | null
   completedAt: string
 }
 
